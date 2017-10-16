@@ -1,0 +1,185 @@
+﻿@{
+    ViewBag.Title = "Администрирование учреждений, осуществляющих деятельность по лицензированию";
+}
+
+<div class="row" ng-app="OrgUnitApp">
+    <div ng-controller="OrgUnitCtrl" ng-cloak>
+
+        <div class="row">
+            <div class="col-md-12">
+                <h3>@ViewBag.Title</h3>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="toolbutton-panel">
+                    <button class="btn btn-primary btn-sm" ng-disabled="IsLoading" ng-click="AddOrgUnit()">Новое учреждение</button>
+                    <button class="btn btn-default btn-sm" ng-disabled="IsLoading||SelectedOrgUnit==null" ng-click="DeleteOrgUnit(SelectedOrgUnit)">Удалить</button>
+                    <button ng-disabled="IsLoading" type="button" class="btn btn-default btn-sm" ng-hide="SelectedOrgUnit==null||!SelectedOrgUnit.IsChanged" ng-click="SaveChangesOrgUnit(SelectedOrgUnit)">
+                        <span class="glyphicon glyphicon-floppy-disk"></span> Сохранить изменения
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="row padding-bottom-right">
+            <div class="col-md-12">
+                <div class="list-group">
+                    <div ng-click="SelectOrgUnit(OrgUnit)" ng-class="{true:'list-group-item list-group-item-info',false:'list-group-item'}[OrgUnit.IsSelected]" ng-repeat="OrgUnit in OrgUnits">
+
+                        <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.Name" ng-change="OrgUnit.IsChanged = true" placeholder="Название">
+                        <div ng-show="OrgUnit.IsSelected==true" class="input-comment-block">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    ИНН:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.INN" ng-change="OrgUnit.IsChanged = true" placeholder="ИНН">
+                                    КПП:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.KPP" ng-change="OrgUnit.IsChanged = true" placeholder="КПП">
+                                    Почтовый индекс:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.PostalCode" ng-change="OrgUnit.IsChanged = true" placeholder="Почтовый индекс">
+                                    Адрес:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.Address" ng-change="OrgUnit.IsChanged = true" placeholder="Адрес">
+                                </div>
+                                <div class="col-md-4">
+                                    ОГРН:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.OGRN" ng-change="OrgUnit.IsChanged = true" placeholder="ОГРН">
+                                    Телефон:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.Tel" ng-change="OrgUnit.IsChanged = true" placeholder="Телефон">
+                                    Факс:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.Fax" ng-change="OrgUnit.IsChanged = true" placeholder="Факс">
+                                    Почта:
+                                    <input ng-class="{true:'alert-danger',false:''}[OrgUnit.IsError]" type="text" ng-disabled="IsLoading" class="form-control" ng-model="OrgUnit.EMail" ng-change="OrgUnit.IsChanged = true" placeholder="Почта">
+                                </div>
+                                <div class="col-md-4">
+                                    <div ng-repeat="LicenseActivityType in LicenseActivityTypes">
+                                        <div class="checkbox div-checkbox">
+                                            <input type="checkbox" class="large-checkbox" ng-disabled="IsLoading" ng-model="LicenseActivityType.IsSelected" ng-change="SelectedOrgUnit.IsChanged = true"> <span class="glyphicon glyphicon-star basic-icon"></span> {{LicenseActivityType.Name}}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row" style="padding-top:10px;">
+                                <div class="col-md-6">
+                                    <tag-editor-table is-loading="IsLoading" tag-table="OrgUnit.TagsTable" rules-dispatcher="OrgUnit.RulesDispatcher"></tag-editor-table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+
+
+
+@section scripts
+{
+
+    <script type="text/javascript" src="@Url.Content("/RuleEntity/GetRulesJS/entity/OrgUnit")"></script>
+
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/TagEditorDirective.js")"></script>
+
+    <script>
+        var app = angular.module('OrgUnitApp', ['ui.bootstrap', 'tageditor']);
+        app.controller('OrgUnitCtrl', function ($scope, $http, $modal) {
+
+            $scope.IsLoading = true;
+
+            $http.get('/OrgUnit/GetOrgUnits').success(function (data) {
+                $scope.IsLoading = false;
+                $scope.OrgUnits = data;
+
+                for (var i = 0; i < data.length; i++) {
+                    $scope.InitDispatcherForOrgUnit(data[i]);
+                }
+            });
+
+            $scope.InitDispatcherForOrgUnit = function (OrgUnit) {
+                OrgUnit.RulesDispatcher = InitDispatcher(OrgUnit.TagsTable, OrgUnit, [], []);
+            }
+
+            $scope.SaveChangesOrgUnit = function (OrgUnit) {
+                $scope.IsLoading = true;
+                OrgUnit.RulesDispatcher.Entity = null;
+                $http.post('/OrgUnit/SaveOrgUnit', { org_unit: OrgUnit }).success(function (data) {
+                    if (data) {
+                        OrgUnit.IsChanged = false;
+                        $scope.IsLoading = false;
+                        OrgUnit.IsError = data.IsError;
+                        OrgUnit.Id = data.Id;
+                        $scope.InitDispatcherForOrgUnit(OrgUnit);
+                    }
+                });
+            };
+
+            $scope.DeleteOrgUnit = function (OrgUnit) {
+                $scope.IsLoading = true;
+
+                if (OrgUnit.Id > 0) {
+
+                    $http.post('/OrgUnit/DeleteOrgUnit', { id_org_unit: OrgUnit.Id }).success(function (data) {
+                        if (data == true) {
+                            //          $scope.OrgUnits = null;
+
+                            $scope.SelectedOrgUnit = null;
+                            $scope.OrgUnits = $.grep($scope.OrgUnits, function (value) {
+                                return value != OrgUnit;
+                            });
+                            $scope.IsLoading = false;
+                        }
+                        else {
+                            OrgUnit.IsError = true;
+                            $scope.IsLoading = false;
+                        }
+                    });
+                }
+                else {
+                    //  $scope.OrgUnits = null;
+
+                    $scope.SelectedOrgUnit = null;
+                    $scope.OrgUnits = $.grep($scope.OrgUnits, function (value) {
+                        return value != OrgUnit;
+                    });
+                    $scope.IsLoading = false;
+                }
+
+            };
+
+            $scope.AddOrgUnit = function () {
+                $scope.IsLoading = true;
+
+                $http.get('/OrgUnit/GetTemplateNewOrgUnit').success(function (data) {
+                    if (data) {
+                        $scope.OrgUnits.unshift(data);
+                        $scope.SelectOrgUnit(data);
+                        $scope.InitDispatcherForOrgUnit(data);
+                        $scope.IsLoading = false;
+                    }
+                });
+            };
+
+            $scope.SelectOrgUnit = function (OrgUnit) {
+                if ($scope.SelectedOrgUnit != OrgUnit) {
+                    if ($scope.SelectedOrgUnit) {
+                        if ($scope.SelectedOrgUnit.IsChanged) {
+                            $scope.SaveChangesOrgUnit($scope.SelectedOrgUnit);
+                        }
+                        $scope.SelectedOrgUnit.IsSelected = false;
+                    }
+                    $scope.SelectedOrgUnit = OrgUnit;
+                    $scope.SelectedOrgUnit.IsSelected = true;
+                    $scope.LicenseActivityTypes = OrgUnit.LicenseActivityTypes;
+                }
+            };
+
+        });
+    </script>
+}
+
+

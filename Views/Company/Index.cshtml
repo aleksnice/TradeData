@@ -1,0 +1,291 @@
+﻿@model object
+@{
+    ViewBag.Title = "Реестр организаций";
+}
+<div class="row" ng-app="CompanyApp" >
+    <div ng-controller="CompanyCtrl" ng-cloak>
+
+
+        <div class="row">
+            <div class="col-md-8">
+                <h3>@ViewBag.Title</h3>
+            </div>
+            <div class="col-md-4 bottom-table-info">
+                Всего организаций: {{CountCompanies}} (загружено {{CountLoaded}})
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="toolbutton-panel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="btn-group">
+                                <button class="btn btn-default btn-sm" ng-disabled="SelectedCompany == null" ng-click="openEditCompanyWindow(SelectedCompany)">Карточка организации</button>
+                                @*<button class="btn btn-default btn-sm" ng-disabled="SelectedCompany == null" ng-click="">Инициировать проверку</button>*@
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-right">
+                            <div class="btn-group">
+                                <print-report-menu entity="AllFilters" category="'CompanyView'" meta="null"></print-report-menu>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row smaller-font ">
+            <div class="col-md-12">
+                <div id="CompanyGrid" ng-style="HeightGrid" ui-grid="CompanyGridOptions" ui-grid-resize-columns ui-grid-infinite-scroll ui-grid-selection ui-grid-pinning></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    <script type="text/javascript" src="@Url.Content("/Scripts/i18n/angular-locale_ru-ru.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ui-grid-unstable.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CompanyWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/FiltratorClient.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ng-file-upload.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadDocumentModuleDirective.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CascadePrintReportMenu.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/UnitWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/SelectAddrDirective.js")"></script>
+
+    <script>
+    //, $timeout, $q
+        var app = angular.module('CompanyApp', ['ui.bootstrap','ngAnimate', 'ui.grid','ui.grid.pinning', 'ui.grid.resizeColumns', 'ui.grid.infiniteScroll', 'ui.grid.selection','ngFileUpload','ui.grid.edit','cascadedownloaddocument','cascadeprintreportmenu','cascadeselectaddr']);
+        app.controller('CompanyCtrl', function ($scope, $http, $uibModal, $timeout, $q, uiGridConstants, i18nService, Upload) {
+
+        $scope.HeightGrid = {height:$(window).height()-300+"px"};
+        i18nService.setCurrentLang('ru');
+        $scope.SelectedCompany = null;
+        $scope.SelectedUnit = null;
+
+        $scope.CountLoaded = 0;
+
+        $scope.openEditCompanyWindow = function (SelectedCompany) {
+
+            var ContentModalInstance = $uibModal.open({
+                templateUrl: '/Home/CompanyWindowDetail',
+                controller: 'EditCompanyModalInstanceCtrl',
+                size: 'lg',
+                resolve: {
+                    CompanyId: function () {
+                        if (SelectedCompany == null) {
+                            return 0;
+                        }
+                        else {
+                            return SelectedCompany.Id;
+                        }
+
+
+                    }
+                }
+
+            });
+
+            ContentModalInstance.result.then(function (Company) {
+
+                $http.post('@Url.Action("AddCompany", "Company")', { CompanyVM: Company }).success(function (data) {
+                    if (data) {
+                        if (Company.Id > 0) {
+                            $scope.SelectedCompany.FullName = Company.FullName;
+                            $scope.SelectedCompany.ShortName = Company.ShortName;
+                            $scope.SelectedCompany.INN = Company.INN;
+                            $scope.SelectedCompany.KPP = Company.KPP;
+                            $scope.SelectedCompany.Email = Company.Email;
+                            $scope.SelectedCompany.Address = Company.Address;
+                            $scope.SelectedCompany.Fax = Company.Fax;
+                            $scope.SelectedCompany.Phone = Company.Phone;
+                            $scope.SelectedCompany.OGRN = Company.OGRN;
+                            $scope.SelectedCompany.IsModifiedAddress = Company.IsModifiedAddress;
+                            $scope.SelectedCompany.id_addr = Company.id_addr;
+                            $scope.SelectedCompany.LegalFormType = Company.LegalFormType;
+                        }
+                        else {
+
+                        }
+                    }
+                });
+            }, function () {
+
+            });
+        };
+
+
+        function rowTemplate() {
+            return '<div ng-dblclick="grid.appScope.rowDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" style="-webkit-user-select: text;user-select:text" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+        }
+
+        $scope.rowDblClick = function (row) {
+            $scope.openEditCompanyWindow(row.entity);
+
+            $timeout(function () {
+                if(document.selection && document.selection.empty) {
+                    document.selection.empty();
+                } else if(window.getSelection) {
+                    var sel = window.getSelection();
+                    sel.removeAllRanges();
+                }
+            }, 100);
+        };
+
+
+        $scope.get_template = function () {
+            return GetTemplateFromGridAndMetaFilter($scope.company_grid, null);
+        };
+
+        $scope.CompanyGridOptions = {
+            data:[],
+            enableGridMenu: true,
+            enablePinning: true,
+            enableRowSelection: true,
+            enableRowHeaderSelection: false,
+            rowTemplate: rowTemplate(),
+            multiSelect: false,
+            noUnselect: true,
+            enableSelectionBatchEvent: false,
+            enableColumnResizing: true,
+            useExternalSorting: true,
+            enableFiltering: true,
+            useExternalFiltering: true,
+            infiniteScrollRowsFromEnd: 10,
+            infiniteScrollUp: false,
+            infiniteScrollDown: true,
+            columnDefs: [
+                { name: 'Полное название', field: 'FullName' },
+                { name: 'Сокращенно', field: 'ShortName' },
+                { name: 'ИНН', field: 'INN' },
+                { name: 'КПП', field: 'KPP' },
+                { name: 'ОГРН', field: 'OGRN' },
+                { name: 'Форма', field: 'LegalFormType.Name'},
+                { name: 'Почта', field: 'Email' },
+                { name: 'Адрес', field: 'Address' }
+            ],
+            onRegisterApi: function (CompanyGridApi) {
+                
+                
+                $scope.CompanyGridApi = CompanyGridApi;
+                $scope.company_grid = CompanyGridApi.grid;
+
+                $scope.CompanyGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectCompany);
+
+                $scope.CompanyGridApi.infiniteScroll.on.needLoadMoreData($scope, $scope.CompanyFilterNextPage);
+                //$scope.CompanyGridApi.infiniteScroll.on.needLoadMoreDataTop($scope, $scope.NullFunction);
+                $scope.CompanyGridApi.core.on.filterChanged($scope, function () {
+
+                    if (angular.isDefined($scope.filterTimeout)) {
+                        $timeout.cancel($scope.filterTimeout);
+                    }
+                    var grid = this.grid;
+                    $scope.filterTimeout = $timeout(function () {
+                        $scope.FilterCompany();
+
+                    }, 300);
+
+                });
+
+                $scope.CompanyGridApi.core.on.sortChanged($scope, function () {
+                    if (angular.isDefined($scope.filterTimeout)) {
+                        $timeout.cancel($scope.filterTimeout);
+                    }
+                    $scope.filterTimeout = $timeout(function () {
+                        $scope.FilterCompany();
+                    }, 100);
+                });
+            }
+        };
+
+        $scope.FilterCompany = function () {
+            $scope.SelectedCompany = null;
+            $scope.SelectedUnit = null;
+
+
+            $http.post('@Url.Action("CompanyFilter", "Company")', { filter_template: $scope.get_template() })
+            .success(function (data) {
+                $scope.CompanyGridApi.infiniteScroll.setScrollDirections(false, false);
+                $scope.SkipCompanyCount = data.company_list.length;
+                $scope.CountLoaded = data.company_list.length;
+                $scope.CountCompanies = data.Count;
+                $scope.CompanyGridOptions.data = data.company_list;
+                $scope.CompanyGridApi.infiniteScroll.resetScroll(false, $scope.SkipCompanyCount < $scope.CountCompanies);
+            });
+        };
+
+
+        $scope.SelectCompany = function (row, event) {
+
+            if (row.isSelected == true) {
+                $scope.SelectedCompany = row.entity;
+                $scope.SelectedCompany.IsSelected = true;
+
+                $scope.SelectedUnit = null;
+            }
+            else {
+                if ($scope.SelectedCompany != null) {
+                    $scope.SelectedCompany.IsSelected = false;
+                }
+                $scope.SelectedCompany = null;
+                $scope.SelectedUnit = null;
+
+            }
+        };
+
+
+        $scope.CompanyFilterNextPage = function () {
+            $http.post('@Url.Action("CompanyFilterNextPage", "Company")', { filter_template: $scope.get_template(), SkipCount: $scope.SkipCompanyCount })
+                .success(function (data) {
+                    $scope.SkipCompanyCount = $scope.SkipCompanyCount + data.length;
+                    $scope.CompanyGridApi.infiniteScroll.saveScrollPercentage();
+                    $scope.CompanyGridOptions.data = $scope.CompanyGridOptions.data.concat(data);
+                    $scope.CountLoaded = $scope.CompanyGridOptions.data.length;
+                    //$scope.CompanyGridApi.infiniteScroll.dataLoaded(false, $scope.SkipCompanyCount < $scope.CountCompanies).then(function () {
+                    //    promise.resolve();
+                    //});
+                    $scope.CompanyGridApi.infiniteScroll.dataLoaded(false, $scope.SkipCompanyCount < $scope.CountCompanies);
+
+                })
+                .error(function (error) {
+                    $scope.CompanyGridApi.infiniteScroll.dataLoaded();
+                });
+            };
+
+
+
+
+            //$scope.NullFunction = function () {
+
+            //       // $scope.CompanyGridApi.infiniteScroll.dataLoaded(false, $scope.SkipCompanyCount < $scope.CountCompanies);
+            //};
+
+            $scope.SkipCompanyCount = 0;
+
+            if (angular.isDefined($scope.filterTimeout)) {
+                $timeout.cancel($scope.filterTimeout);
+            }
+            $scope.filterTimeout = $timeout(function () {
+
+                var buf_template = @Html.Raw(Model) ;
+
+                SetTemplateToGridAndMetaFilter($scope.company_grid, null, buf_template);
+                
+                $scope.FilterCompany();
+            }, 10);
+
+
+            $scope.$on("$destroy", function (event) {
+                if (angular.isDefined($scope.filterTimeout)) {
+                    $timeout.cancel($scope.filterTimeout);
+                }
+            });
+
+        });
+
+        ConfigureCompanyWindowDetail(app);
+        ConfigureUnitWindowDetail(app);
+    </script>
+}

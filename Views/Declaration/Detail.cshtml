@@ -1,0 +1,2090 @@
+﻿@model string
+@{
+    ViewBag.Title = "Заявление";
+}
+
+
+<div class="row" ng-app="DeclarationApp">
+    <div ng-controller="DeclarationCtrl" ng-cloak>
+        <div class="row">
+            <div class="col-md-7">
+                <h4>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='Grant'">Создание заявления на выдачу лицензии</span>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='Prolong'">Создание заявления на продление лицензии</span>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='ReNew'">Создание заявления на переоформление лицензии</span>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='ProlongReNew'">Создание заявления на переоформление и продление лицензии</span>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='Cancel'">Создание заявления на досрочное прекращение лицензии</span>
+                    <span ng-show="Declaration.TypeCreateDeclaration=='Edit'">Редактирование заявления на <span ng-show="Declaration.IsGrantType">выдачу</span><span ng-show="Declaration.IsProlongType&&!Declaration.IsReNewType">продление</span><span ng-show="!Declaration.IsProlongType&&Declaration.IsReNewType">переоформление</span><span ng-show="Declaration.IsProlongType&&Declaration.IsReNewType">продление и переоформление</span><span ng-show="Declaration.IsCancelType">досрочное прекращение действия</span> лицензии</span>
+                    {{Declaration.Company.ShortName}}
+                </h4>
+            </div>
+            <div class="col-md-2">
+                @Html.Partial("../Home/partialPreload")
+            </div>
+            <div class="col-md-1 text-right" style="padding:6px;">
+                <img src="~/Content/gosuslugi.png" height="22" ng-show="Declaration.SmevId>0" title="Заявление подано с Портала госуслуг" />
+            </div>
+            <div class="col-md-2 text-right">
+                <div class="alert alert-info text-center" role="alert" style="padding:6px;">
+                    {{Declaration.StatusRus}}
+                </div>
+            </div>
+        </div>
+
+        <div class="row toolbutton-panel">
+            <div class="col-md-8">
+                <a class=" btn btn-default btn-sm" href="/Declaration/Index" tooltip="К реестру"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span></a>
+                @*если переходим в реестр и если IsChanged, то надо спрашивать сохранять ли изменения в диалоге*@
+                <button class="btn btn-info btn-sm" ng-show="Declaration.Status=='Draft'" ng-click="SetDeclarationConsideration()" ng-disabled="IsLoading||(Declaration.Company.Id==0&&(!IsCheckedINN||OtherCompanyRef!=''))" tooltip="При регистрации заявления оно считается официально принятым, ему автоматически выделяется очередной регистрационный номер">Зарегистрировать</button>
+                <button class="btn btn-info btn-sm" ng-click="SetDeclarationStartRevision()" ng-show="Declaration.Status=='Consideration'" ng-disabled="IsLoading" tooltip="После перевода заявления в статус проведения проверок, оно поступает в очередь на проведение документарных и выездных проверок">Провести проверки</button>
+                @*<button class="btn btn-info btn-sm" ng-click="SetDeclarationConsideration()" ng-disabled="IsLoading||(Declaration.Company.Id==0&&(!IsCheckedINN||OtherCompanyRef!=''))" tooltip="Регистрация решения по заявлению по итогам его рассмотрения и проведенных проверок, при принятии решения ему автоматически выделяется очередной регистрационный номер">Принять решение</button>*@
+            </div>
+            <div class="col-md-4 text-right">
+                @if (User.IsInRole("Admin"))
+                {
+                    <a class="btn btn-info btn-sm" data-ng-href="@Url.Action("LogItemDetails", "Log")?id={{Declaration.Id}}&typeObject=Declaration"
+                       target="_blank" uib-tooltip="История изменений полей объекта">
+                        <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
+                    </a>
+
+                    <button class="btn btn-danger btn-sm" ng-show="Declaration.Status!='Draft'&&IsEditMode!=true" ng-click="HandleSOSButton()" uib-tooltip="SOS">
+                        <span class="glyphicon glyphicon-fire" aria-hidden="true"></span>
+                    </button>
+                    <button class="btn btn-danger btn-sm" ng-show="Declaration.Status!='Draft'&&IsEditMode==true" ng-click="HandleSOSButton()" uib-tooltip="Сохранить изменения">
+                        <span class="glyphicon glyphicon-floppy-disk" aria-hidden="true"></span>
+                    </button>
+                    <button class="btn btn-warning btn-sm" ng-show="Declaration.Status!='Draft'&&IsEditMode==true" ng-click="IsEditMode=false" uib-tooltip="Выйти из режима SOS без сохранения">
+                        <span class="glyphicon glyphicon-ban-circle" aria-hidden="true"></span>
+                    </button>
+                }
+                <button class="btn btn-default btn-sm" ng-show="Declaration.Status=='Draft'||Declaration.Status=='Consideration'||Declaration.Status=='StartRevision'" ng-hide="IsEditMode==true" ng-disabled="IsLoading||(Declaration.Company.Id==0&&(!IsCheckedINN||OtherCompanyRef!=''))" 
+                        ng-click="JustSaveDeclaration(false)" tooltip="Сохранить">
+                    <span class="glyphicon glyphicon-floppy-disk" aria-hidden="true"></span>
+                </button>
+                <div class="btn-group">
+                    <print-report-menu entity="Declaration" category="'DeclarationDetailView'" meta="null"></print-report-menu>
+                </div>
+                <div class="btn-group" ng-show="Declaration.Status=='Draft'&&Declaration.Id>0">
+                    <button type="button" class="btn btn-default btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" tooltip="Удалить черновик заявления">
+                        <span class="glyphicon glyphicon-trash" aria-hidden="true"></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-right">
+                        <li>
+                            <a ng-disabled="IsLoading" ng-click="RemoveDraftDeclaration()">Удалить черновик заявления</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <uib-tabset active="activeTabIndex">
+            <uib-tab heading="Основные данные">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <b>Реквизиты заявления</b>
+                    </div>
+                    <div class="panel-body">
+                        <div class="row smaller-font">
+                            <div class="col-md-7">
+                                <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row" width="150px">Рег. номер</th>
+                                            <td><input type="text" class="form-control input-sm standart-input" ng-readonly="IsEditMode!=true" ng-model="Declaration.RegNomAll"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-md-5">
+                                <table class="table table-hover table-details">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row" width="150px">Дата и время</th>
+                                            <td>
+                                                <input type="text" class="form-control input-sm date-box" ng-disabled="Declaration.Status=='Draft'"
+                                                       ng-readonly="IsEditMode!=true"
+                                                       ng-model="Declaration.DateTimeDeclaration">
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <b>Данные организации</b>
+                    </div>
+                    <div class="panel-body">
+                        <div class="row smaller-font">
+                            <div class="col-md-7">
+                                <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row">ОПФ</th>
+                                            <td>
+                                                <select class="form-control input-sm standart-input" ng-model="Declaration.Company.LegalFormType"
+                                                        ng-readonly="UIDisabledPM()" ng-change="CopyLegalFormFullName();CopyLegalFormShortName();"
+                                                        ng-options="l as l.Name for l in LegalFormTypeList track by l.Id"></select>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Название</th>
+                                            <td>
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.CompanyName"
+                                                       ng-readonly="UIDisabledPM()" ng-change="CopyLegalFormFullName(); CopyLegalFormShortName(); ">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Полное название <error-span tag="RulesDispatcher.EntityExt.FullName" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.FullName.Errors.length>0}">
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.FullName"
+                                                       ng-readonly="UIDisabledPM()"
+                                                       ng-change="Declaration.Company.IsChanged = true; RulesDispatcher.RunAllRules()">
+                                            </td>
+                                            @*<div class="input-group">
+                                                    <input type="text" ng-readonly="UIDisabledPM()" class="form-control input-sm" ng-model="Declaration.Company.FullName" ng-change="Declaration.Company.IsChanged = true">
+                                                         <span class="input-group-btn">
+                                                             <button class="btn btn-default btn-sm" type="button"
+                                                                  ng-disabled="IsLoading||!(Declaration.Id==0&&Declaration.Status=='Draft')"
+                                                                  ng-click="openEgrulWindow(Declaration.Company.FullName,'наименованию')">
+                                                                  <span class="glyphicon glyphicon-search"></span> Поиск по ЕГРЮЛ
+                                                             </button>
+                                                        </span>
+                                                </div>
+                                                <div class="text-right" ng-show="EgrulInfoUrl!=null"><a href="{{EgrulInfoUrl}}">Скачать выписку из ЕГРЮЛ</a></div>*@
+
+                                        </tr>
+
+                                        <tr>
+                                            <th scope="row">Сокращенное название <error-span tag="RulesDispatcher.EntityExt.ShortName" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.ShortName.Errors.length>0}">
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.ShortName"
+                                                       ng-readonly="UIDisabledPM()"
+                                                       ng-change="Declaration.Company.IsChanged = true; RulesDispatcher.RunAllRules()">
+                                            </td>
+                                        </tr>
+
+
+                                        <tr>
+                                            <th scope="row">ИНН <error-span tag="RulesDispatcher.EntityExt.INN" placement="right" ng-show="!IsCheckedINN"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.INN.Errors.length>0}">
+                                                <input ng-readonly="Declaration.Company.Id!=0" type="text" class="form-control input-sm" ng-model="Declaration.Company.INN"
+                                                       ng-change="CheckINN();RulesDispatcher.RunAllRules();">
+                                                @*                                                <div class=" input-group">
+                                                     <input ng-readonly="Declaration.Company.Id!=0" type="text" class="form-control input-sm" ng-model="Declaration.Company.INN" ng-change="CheckINN()">
+                                                     <span class="input-group-btn">
+                                                     <button class="btn btn-default btn-sm" type="button"
+                                                     ng-disabled="IsLoading||!(Declaration.Id==0&&Declaration.Status=='Draft')"
+                                                     ng-click="openEgrulWindow(Declaration.Company.INN, 'ИНН')">
+                                                     <span class="glyphicon glyphicon-search"></span> Поиск по ЕГРЮЛ
+                                                    </button>
+                                                            </span>
+                                                           </div>*@
+                                                <div ng-show="Declaration.Company.Id==0" style="color: #a94442">
+                                                    <span ng-show="!IsCheckedINN">Некорректный ИНН</span>
+                                                    @*<span ng-show="IsCheckedINN&&OtherCompanyRef==''">Данный ИНН свободен</span>*@
+                                                    <span ng-show="IsCheckedINN&&OtherCompanyRef!=''">Организация с введенным ИНН уже существует! (<a href="{{OtherCompanyRef}}">посмотреть</a>)</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Эл. почта <error-span tag="RulesDispatcher.EntityExt.Email" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.Email.Errors.length>0}">
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.Email" ng-change="RulesDispatcher.RunAllRules()"
+                                                       ng-readonly="UIDisabledPM()">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Руководитель</th>
+                                            <td>
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.MasterName" ng-change="Declaration.Company.IsChanged = true"
+                                                       ng-readonly="UIDisabledPM()">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Представитель</th>
+                                            <td>
+                                                <input ng-show="UIDisabledPM()" readonly type="text" class="form-control input-sm" ng-model="Declaration.VakeelName">
+                                                <div class="input-group" ng-show="!UIDisabledPM()">
+                                                    <input type="text" class="form-control input-sm" ng-model="Declaration.VakeelName" ng-change="Declaration.Company.IsChanged = true"
+                                                           ng-readonly="UIDisabledPM()"/>
+                                                    <span class="input-group-btn">
+                                                        <button class="btn btn-default btn-sm" type="button" ng-disabled="UIDisabled()" ng-click="CopyMasterName()">
+                                                            <span class="glyphicon glyphicon-duplicate"></span> Скопировать имя руководителя
+                                                        </button>
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Местоположение заявителя</th>
+                                            <td>
+                                                <input ng-show="UIDisabledPM()" readonly type="text" class="form-control input-sm" ng-model="Declaration.Company.Address">
+                                                <select-addr ng-show="!UIDisabledPM()"
+                                                             room-nom-property="Declaration.Company.AddressRoomNom"
+                                                             litera-property="Declaration.Company.AddressLitera"
+                                                             build-nom-property="Declaration.Company.AddressBuildNom"
+                                                             house-property="Declaration.Company.AddressHouse"
+                                                             fsrar-property="Declaration.Company.FSRARAddress"
+                                                             address-property="Declaration.Company.Address"
+                                                             address-for-document-property="Declaration.Company.AddressForDocument"
+                                                             id-address-property="Declaration.Company.id_addr"
+                                                             postal-code-property="Declaration.Company.PostalCode"
+                                                             ></select-addr>
+                                                @*show-postal-code="true"*@
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Почтовый адрес</th>
+                                            <td>
+                                                <input ng-show="UIDisabledPM()" readonly type="text" class="form-control input-sm" ng-model="Declaration.Company.PostalAddress">
+                                                <div class="input-group" ng-show="!UIDisabledPM()">
+                                                    <input type="text" class="form-control input-sm" ng-model="Declaration.Company.PostalAddress" placeholder="Введите почтовый адрес">
+                                                    <span class="input-group-btn">
+                                                        <button class="btn btn-default btn-sm" type="button" ng-disabled="UIDisabled()" ng-click="CopyAddress()">
+                                                            <span class="glyphicon glyphicon-duplicate"></span> Скопировать основной адрес в почтовый
+                                                        </button>
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-md-5">
+                                <table class="table table-hover table-details">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row" width="200px">ОГРН <error-span tag="RulesDispatcher.EntityExt.OGRN" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.OGRN.Errors.length>0}">
+                                                <input ng-readonly="UIDisabledPM()"
+                                                       type="text" class="form-control input-sm" ng-model="Declaration.Company.OGRN" ng-change="RulesDispatcher.RunAllRules()">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">КПП <error-span tag="RulesDispatcher.EntityExt.KPP" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.KPP.Errors.length>0}">
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.KPP" ng-change="RulesDispatcher.RunAllRules()"
+                                                       ng-readonly="UIDisabledPM()">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row" width="200px">Телефон</th>
+                                            <td><input ng-readonly="UIDisabledPM()" type="text" class="form-control input-sm" ng-model="Declaration.Company.Phone" ng-change="Declaration.Company.IsChanged = true"></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Факс</th>
+                                            <td>
+                                                <input ng-readonly="UIDisabledPM()" type="text" class="form-control input-sm" ng-model="Declaration.Company.Fax" ng-change="Declaration.Company.IsChanged = true">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Название банка</th>
+                                            <td><input ng-readonly="UIDisabledPM()" type="text" class="form-control input-sm" ng-model="Declaration.Company.BanksName"></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Номер расчетного счета</th>
+                                            <td><input ng-readonly="UIDisabledPM()" type="text" class="form-control input-sm" ng-model="Declaration.Company.CheckingAccount"></td>
+                                        </tr>
+                                        <tr ng-show="Declaration.IsProlongType||Declaration.IsGrantType">
+                                            <th scope="row">Срок испрашиваемой лицензии <error-span tag="RulesDispatcher.EntityExt.CountYears" placement="right"></error-span></th>
+                                            <td>
+                                                <input type="radio" ng-model="Declaration.CountYears" value="1" ng-disabled="UIDisabled()" ng-change="RulesDispatcher.RunAllRules()"><span class="inline-ragiobutton-text">1 год</span>
+                                                <input type="radio" ng-model="Declaration.CountYears" value="2" ng-disabled="UIDisabled()" ng-change="RulesDispatcher.RunAllRules()"><span class="inline-ragiobutton-text">2 года</span>
+                                                <input type="radio" ng-model="Declaration.CountYears" value="3" ng-disabled="UIDisabled()" ng-change="RulesDispatcher.RunAllRules()"><span class="inline-ragiobutton-text">3 года</span>
+                                                <input type="radio" ng-model="Declaration.CountYears" value="4" ng-disabled="UIDisabled()" ng-change="RulesDispatcher.RunAllRules()"><span class="inline-ragiobutton-text">4 года</span>
+                                                <input type="radio" ng-model="Declaration.CountYears" value="5" ng-disabled="UIDisabled()" ng-change="RulesDispatcher.RunAllRules()"><span class="inline-ragiobutton-text">5 лет</span>
+                                            </td>
+                                        </tr>
+                                        <tr ng-show="Declaration.IsReNewType">
+                                            <th scope="row">Основания переоформления</th>
+                                            @*<td>
+                                                <select class="form-control input-sm" ng-model="Declaration.ReasonForRenew" ng-disabled="UIDisabled()"
+                                                            ng-options="l as l.Name for l in ReasonForRenewList track by l.Id"></select>
+                                                </td>*@
+                                            <td>
+                                                <div class="checkbox div-checkbox" ng-repeat="ReasonForRenew in Declaration.ReasonForRenews">
+                                                    <input type="checkbox" class="large-checkbox" ng-model="ReasonForRenew.IsChecked"
+                                                           ng-disabled="UIDisabled()"> {{ReasonForRenew.Name}}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr ng-show="Declaration.IsReNewType">
+                                            <th scope="row">Другая причина</th>
+                                            <td><textarea class="form-control input-sm" ng-model="Declaration.OtherReason" ng-disabled="UIDisabled()" rows="5"></textarea></td>
+                                        </tr>
+                                        <tr ng-show="Declaration.IsReNewType||Declaration.IsProlongType||Declaration.IsCancelType">
+                                            <td colspan="2">Базовая лицензия: <b>{{Declaration.LicenseNumber}}</b>, срок действия до <b>{{Declaration.LicenseDateExpired}}</b></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Способ получения информации</th>
+                                            <td>
+                                                <input type="checkbox" ng-disabled="UIDisabled()" ng-model="Declaration.IsPhoneInformation"> по телефону<br />
+                                                <input type="checkbox" ng-disabled="UIDisabled()" ng-model="Declaration.IsEmailInformation"> по e-mail
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Способ получения результата</th>
+                                            <td>
+                                                <input type="checkbox" ng-disabled="UIDisabled()" ng-model="Declaration.IsMailGetResult"> почтовое отправление<br />
+                                                <input type="checkbox" ng-disabled="UIDisabled()" ng-model="Declaration.IsEMailGetResult"> в электронной форме<br />
+                                                <input type="checkbox" ng-disabled="UIDisabled()" ng-model="Declaration.IsPersonGetResult"> при личном приеме
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Комментарий к заявлению: </th>
+                                            <td>
+                                                @*<input type="text" ng-disabled="UIDisabled()" class="form-control input-sm" ng-model="Declaration.Comm">*@
+                                                <textarea class="form-control input-sm" ng-model="Declaration.Comm" ng-disabled="UIDisabled()" rows="5"></textarea>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="row smaller-font">
+                            @*<div class="col-md-12">
+                                    <table class="table table-hover table-details">
+                                        <tbody>
+                                            <tr>
+                                                <th width="150px">Местоположение заявителя</th>
+                                                <td>
+                                                    <input ng-show="UIDisabledPM()" readonly type="text" class="form-control input-sm" ng-model="Declaration.Company.Address">
+                                                    <select-addr ng-show="!UIDisabledPM()"  room-nom-property="Declaration.Company.AddressRoomNom" litera-property="Declaration.Company.AddressLitera" build-nom-property="Declaration.Company.AddressBuildNom" house-property="Declaration.Company.AddressHouse" fsrar-property="Declaration.Company.FSRARAddress" address-property="Declaration.Company.Address" address-for-document-property="Declaration.Company.AddressForDocument" id-address-property="Declaration.Company.id_addr" postal-code-property="Declaration.Company.PostalCode"></select-addr>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>*@
+
+                            @*<div class="col-md-12">
+                                    <a style="margin-top:10px;margin-bottom:10px;" class="btn btn-default btn-sm" ng-disabled="UIDisabled()" ng-click="CopyAddress()">
+                                        <span class="glyphicon glyphicon-duplicate"></span> Скопировать основной адрес в почтовый
+                                    </a>
+                                </div>*@
+
+                            @*<div class="col-md-8">*@
+                            @*<table class="table table-hover table-details">
+                                <tbody>
+                                    <tr>
+                                        <th width="150px">Почтовый адрес</th>
+                                        <td>
+                                            <input ng-show="UIDisabledPM()" readonly type="text" class="form-control input-sm" ng-model="Declaration.Company.PostalAddress">
+                                            <div class="input-group">
+                                                <input type="text" class="form-control input-sm" ng-model="Declaration.Company.PostalAddress" placeholder="Введите почтовый адрес">
+                                                <span class="input-group-btn">
+                                                    <button class="btn btn-default btn-sm" type="button" ng-disabled="UIDisabled()" ng-click="CopyAddress()">
+                                                        <span class="glyphicon glyphicon-duplicate"></span> Скопировать основной адрес в почтовый
+                                                    </button>
+                                                </span>*@
+                            @*<a style="margin-top:10px; margin-bottom:10px; cursor:default; text-decoration: none;" class="input-group-addon" ng-disabled="UIDisabled()" ng-click="CopyAddress()">
+                                    <span class="glyphicon glyphicon-duplicate"></span> Скопировать основной адрес в почтовый
+                                </a>*@
+                            @*<select-addr ng-show="!UIDisabledPM()" room-nom-property="Declaration.Company.PostalAddressRoomNom" litera-property="Declaration.Company.PostalAddressLitera" build-nom-property="Declaration.Company.PostalAddressBuildNom" house-property="Declaration.Company.PostalAddressHouse" fsrar-property="Declaration.Company.FSRARPostalAddress" address-property="Declaration.Company.PostalAddress" id-address-property="Declaration.Company.id_postal_addr" postal-code-property="Declaration.Company.PostalCode"></select-addr>*@
+                            @*</div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>*@
+                        </div>
+
+                    </div>
+                </div>
+            </uib-tab>
+            @**@
+
+            <uib-tab heading="Платежные поручения" ng-if="!Declaration.IsCancelType">
+                <div class="toolbutton-panel">
+                    <button class="btn btn-primary btn-sm" ng-disabled="UIDisabled()" ng-click="AddPaymentOrder()"> <span class="glyphicon glyphicon-rub"></span> Добавить платежное поручение</button>
+                </div>
+                <div class="list-group">
+                    <div class="list-group-item" ng-repeat="PO in Declaration.PaymentOrders">
+                        <div class="form-group">
+                            <div class="form-inline">
+                                <button class="btn btn-sm" disabled>
+                                    <span class="glyphicon" ng-class="{'glyphicon-trash':PO.IsDeleted, 'glyphicon-plus':PO.IsAdded, 'glyphicon-pencil':PO.IsChanged&&!PO.IsAdded, 'glyphicon-ok':!(PO.IsAdded||PO.IsChanged||PO.IsDeleted) }"></span>
+                                </button>
+                                <span class="inline-span"> № </span>
+                                <input type="text" class="form-control input-sm" ng-model="PO.Nom" ng-readonly="UIDisabled()" placeholder="Номер П/П" />
+                                <span class="inline-span"> от </span>
+                                <div class="input-group date-box">
+                                    <input type="text" class="form-control input-sm"
+                                           datepicker-options="dateOptions" ng-readonly="UIDisabled()"
+                                           datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="PO.Date" is-open="PO.datepicker" ng-required="false" />
+                                    <span class="input-group-btn">
+                                        <button type="button" class="btn btn-default input-sm" ng-disabled="UIDisabled()" ng-click="PO.datepicker = true"><span class="glyphicon glyphicon-calendar"></span></button>
+                                    </span>
+                                </div>
+                                <span class="inline-span"> на сумму </span>
+                                <input type="text" class="form-control input-sm" ng-readonly="UIDisabled()" ng-model="PO.Summ" placeholder="Сумма" />
+                                <span class="inline-span"> комментарий </span>
+                                <input type="text" class="form-control input-sm" ng-readonly="UIDisabled()" ng-model="PO.Comm" placeholder="Комментарий" />
+                                <button ng-if="!PO.IsDeleted" class="btn btn-danger btn-sm" ng-disabled="UIDisabled()" ng-click="RemovePaymentOrder(PO)"><span class="glyphicon glyphicon-trash"></span></button>
+                                <button ng-if="PO.IsDeleted" class="btn btn-warning btn-sm" ng-disabled="UIDisabled()" ng-click="AbortDeletePaymentOrder(PO)"><span class="glyphicon glyphicon-refresh"></span></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </uib-tab>
+            <uib-tab heading="Подразделения" select="SelectUnitsTab()">
+
+                <div ng-hide="Declaration.IsGrantType||Declaration.IsCancelType">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h4>Список продляемых обособленных подразделений</h4>
+                        </div>
+                    </div>
+                    <div class="row" ng-hide="UIDisabled()">
+                        <div class="col-md-10">
+                            <div class="btn-group">
+                                @*<a class="btn btn-default btn-sm" ng-click="openAddUnitInDeclarationWindow('Edit')">Выбрать из текущего бланка</a>*@
+                                <a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="openEditUnitInDeclarationWindow(SelectedUnitInDeclarationEdit,'Редактирование','Edit')">Редактировать</a>
+                                @*<a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="RemoveUnitInDeclarationEdit(SelectedUnitInDeclarationEdit)">Убрать из списка</a>*@@*<a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="RemoveUnitInDeclarationEdit(SelectedUnitInDeclarationEdit)"></a>*@
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row smaller-font" ng-hide="Declaration.IsGrantType">
+                        <div class="col-md-12">
+                            <div style="height:250px" id="EditUnitGrid" ui-grid="EditUnitGridOptions" ui-grid-resize-columns ui-grid-selection></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div ng-hide="!Declaration.IsCancelType">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h4>Список обособленных подразделений</h4>
+                        </div>
+                    </div>
+                    <div class="row" ng-hide="UIDisabled()">
+                        <div class="col-md-10">
+                            <div class="btn-group">
+                                @*<a class="btn btn-default btn-sm" ng-click="openAddUnitInDeclarationWindow('Edit')">Выбрать из текущего бланка</a>*@<a class="btn btn-default btn-sm" ng-click="openAddUnitInDeclarationWindow('Edit')"></a>
+                                <a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="openEditUnitInDeclarationWindow(SelectedUnitInDeclarationEdit,'Редактирование','Edit')">Редактировать</a>
+                                @*<a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="RemoveUnitInDeclarationEdit(SelectedUnitInDeclarationEdit)">Убрать из списка</a>*@<a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationEdit==null" ng-click="RemoveUnitInDeclarationEdit(SelectedUnitInDeclarationEdit)"></a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row smaller-font" ng-hide="Declaration.IsGrantType">
+                        <div class="col-md-12">
+                            <div id="UnitGrid" ng-style="HeightGrid" ui-grid="UnitGridOptions" ui-grid-infinite-scroll ui-grid-resize-columns ui-grid-selection ui-grid-pinning></div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <div ng-if="Declaration.IsReNewType||Declaration.IsGrantType">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h4>Список новых обособленных подразделений</h4>
+                        </div>
+                    </div>
+                    <div class="row" ng-hide="UIDisabled()">
+                        <div class="col-md-10">
+                            <div class="btn-group">
+                                <a class="btn btn-default btn-sm" ng-click="openEditUnitInDeclarationWindow(null,'Добавить новое подразделение','Add')">Добавить</a>
+                                <a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationAdd==null" ng-click="openEditUnitInDeclarationWindow(SelectedUnitInDeclarationAdd,'Редактирование','Add')">Редактировать</a>
+                                <a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationAdd==null" ng-click="RemoveUnitInDeclarationAdd(SelectedUnitInDeclarationAdd)">Удалить</a>
+                                <a class="btn btn-default btn-sm" ng-show="Declaration.Company.Id!=0" ng-click="openAddUnitInDeclarationWindow('Add')" tooltip="Добавить подразделения, которые были в предыдущих лицензиях">Добавить из ранее закрытых</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row smaller-font">
+                        <div class="col-md-12">
+                            <div style="height:250px" id="AddUnitGrid" ui-grid="AddUnitGridOptions" ui-grid-resize-columns ui-grid-selection></div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div ng-show="Declaration.IsReNewType">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h4>Список исключаемых обособленных подразделений</h4>
+                        </div>
+                    </div>
+                    <div class="row" ng-hide="UIDisabled()">
+                        <div class="col-md-10">
+                            <div class="btn-group">
+                                <a class="btn btn-default btn-sm" ng-click="openAddUnitInDeclarationWindow('Remove');">Выбрать из текущего бланка</a>
+                                <a class="btn btn-default btn-sm" ng-hide="SelectedUnitInDeclarationRemove==null" ng-click="RemoveUnitInDeclarationRemove(SelectedUnitInDeclarationRemove)">Убрать из списка</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row smaller-font">
+                        <div class="col-md-12">
+                            <div style="height:250px" id="RemoveUnitGrid" ui-grid="RemoveUnitGridOptions" ui-grid-resize-columns ui-grid-selection></div>
+                        </div>
+                    </div>
+                </div>
+
+            </uib-tab>
+            <uib-tab heading="Документы" select="SelectRevisionsTab()">
+
+                <div class="col-md-12" ng-show="Declaration.Id==0">
+                    Пожалуйста, сохраните новое заявление, чтобы загрузить к нему документы.
+                </div>
+                <div ng-hide="Declaration.Id==0">
+                    <download-document id-entity="Declaration.Id" create-document-url="/Document/CreateNewDocumentForDeclaration" document-list="Declaration.Documents"></download-document>
+                </div>
+            </uib-tab>
+            <uib-tab heading="Дополнительные параметры" ng-show="Declaration.TagsTable.TagValueList.length>0">
+                <div class="row smaller-font">
+                    <div class="col-md-12">
+                        <tag-editor-table tag-table="Declaration.TagsTable" rules-dispatcher="RulesDispatcher"></tag-editor-table>
+                    </div>
+                </div>
+
+            </uib-tab>
+            @*<uib-tab heading="Проверки" select="SelectRevisionsTab()">
+                    <div class="row">
+                        <div class="col-md-12" ng-show="Declaration.Status=='Draft'">
+                            Чтобы начать проверки, заявление должно быть запущено в работу
+                        </div>
+                        <div class="col-md-12" ng-hide="Declaration.Status=='Draft'">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="toolbutton-panel">
+                                        <a ng-show="Declaration.Status=='Consideration'" class="btn btn-info btn-sm" data-ng-href="@Url.Action("Detail", "Revision")/NewForDeclaration/{{Declaration.Id}}">Создать</a>
+                                        <a class="btn btn-info btn-sm" data-ng-href="@Url.Action("Detail", "Revision")/Edit/{{SelectedRevision.Id}}" ng-disabled="SelectedRevision==null">Перейти к проверке</a>
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div style="height:200px" id="RevisionGrid" ui-grid="RevisionGridOptions" ui-grid-resize-columns ui-grid-selection></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </uib-tab>*@
+            <uib-tab heading="Решение">
+                <div class="row smaller-font" style="padding:15px;">
+                    <div class="col-md-12" ng-show="Declaration.Status=='Draft'">
+                        <div class="col-md-8 col-md-offset-2">
+                            <nav class="navbar navbar-default">
+                                <div class="container-fluid text-center">
+                                    <p class="navbar-text text-left">Перед принятием решение по заявлению оно должно быть зарегистрировано. При регистрации заявления, ему автоматически выделяется очередной регистрационный номер и оно считается официально принятым.</p>
+                                    <button class="btn btn-info btn-sm" ng-disabled="IsLoading" style="margin-bottom:15px" ng-click="SetDeclarationConsideration()">Зарегистрировать</button>
+                                </div>
+                            </nav>
+                        </div>
+                    </div>
+
+                    <div class="row" ng-show="Declaration.Status!='Draft' && Declaration.Status!='Canceled' && Declaration.Status!='Agreed' && Declaration.DeclarationsInPack.length>0">
+                        <div class="col-md-12">
+                            <div class="well">
+                                <b>Для данной организации есть другие заявления в обработке. Если Вы хотите, чтобы по решение было принято в том числе и по ним, то выберите их из данной таблицы:</b>
+                                <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <th width="30"></th>
+                                            <th>Номер заявления</th>
+                                            <th>Дата регистрации</th>
+                                            <th>Тип заявления</th>
+                                            <th>Зарегистрировал</th>
+                                            <th>Комментарий</th>
+                                        </tr>
+                                        <tr ng-repeat="DeclarationInPack in Declaration.DeclarationsInPack">
+                                            <td><input type="checkbox" ng-model="DeclarationInPack.IsSelected" ng-click="GenerateUnitsForResolution()" ng-readonly="Declaration.Status=='Consideration'" /></td>
+                                            <td>{{DeclarationInPack.RegNom}}</td>
+                                            <td>{{DeclarationInPack.DateDeclaration}}</td>
+                                            <td>{{DeclarationInPack.ActionDeclarationRus}}</td>
+                                            <td>{{DeclarationInPack.CreatorName}}</td>
+                                            <td>{{DeclarationInPack.Comm}}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row" ng-show="Declaration.Status!='Draft'">
+                        <div class="col-md-6">
+                            <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                <tbody>
+                                    <tr>
+                                        <th scope="row" width="150px">Номер решения</th>
+                                        <td>
+                                            <input type="text" ng-readonly="true" class="form-control input-sm standart-input" ng-model="Declaration.ResolutionNom">
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Дата решения</th>
+                                        <td>
+                                            <div class="input-group date-box">
+                                                <input type="text" class="form-control input-sm"
+                                                       datepicker-options="dateOptions"
+                                                       datepicker-popup="dd.MM.yyyy" show-button-bar="false"
+                                                       ng-readonly="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision';"
+                                                       ng-model="Declaration.ResolutionDate" is-open="datepickers.dt2"
+                                                       ng-required="false">
+                                                <span class="input-group-btn">
+                                                    <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt2')"
+                                                            ng-disabled="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision'">
+                                                        <span class=" glyphicon glyphicon-calendar"></span>
+                                                    </button>
+                                                </span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Метки типа решения</th>
+                                        <td>
+                                            <div class="checkbox div-checkbox" ng-repeat="TypeOfResolution in Declaration.ResolutionTypes">
+                                                <input type="checkbox" class="large-checkbox" ng-model="TypeOfResolution.IsChecked"
+                                                       ng-disabled="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision';"> {{TypeOfResolution.Name}}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                <tbody>
+                                    <tr>
+                                        <th scope="row" width="150px">Примечание</th>
+                                        <td>
+                                            <textarea class="form-control input-sm" ng-model="Declaration.ResolutionComm"
+                                                      ng-readonly="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision';;" rows="5"></textarea>
+                                        </td>
+                                    </tr>
+
+
+                                    <tr>
+                                        <th scope="row" width="150px">Обоснование отказа</th>
+                                        <td>
+                                            <textarea class="form-control input-sm" ng-model="Declaration.RefuseComm"
+                                                      ng-readonly="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision';" rows="6"></textarea>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Причины отказа</th>
+                                        <td>
+                                            <div class="checkbox div-checkbox" ng-repeat="RefuseBasis in Declaration.RefuseBasises">
+                                                <input type="checkbox" class="large-checkbox" ng-model="RefuseBasis.IsChecked"
+                                                       ng-disabled="Declaration.Status!='Consideration'&&Declaration.Status!='StartRevision';"> {{RefuseBasis.Name}}
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div ng-show="Declaration.Status!='Draft' || Declaration.Status=='StartRevision'">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <table ng-hide="Declaration.IsCancelType||UnitsForResolution.length==0" class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <td><b>Решения по обособленным подразделениям</b></td>
+                                            <td style="width:150px;">
+                                                <div class="btn-group" ng-hide="Declaration.Status=='Agreed' || Declaration.Status=='Canceled'">
+                                                    <button class="btn btn-success btn-sm" ng-click="SetAllUnitToNewStatus('Agreed')" uib-tooltip="Перевести все подразделения в статус 'Согласовано'" tooltip-append-to-body="true" tooltip-popup-delay="1500"><span class="glyphicon glyphicon-ok"></span></button>
+                                                    <button class="btn btn-danger btn-sm" ng-click="SetAllUnitToNewStatus('Cancel')" uib-tooltip="Перевести все подразделения в статус 'Отказано'" tooltip-append-to-body="true" tooltip-popup-delay="1500"><span class="glyphicon glyphicon-remove"></span></button>
+                                                    <button class="btn btn-default btn-sm" ng-click="SetAllUnitToNewStatus('None')" uib-tooltip="Сбросить решение" tooltip-append-to-body="true" tooltip-popup-delay="1500"><span class="glyphicon glyphicon-erase"></span></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr ng-repeat="UnitForResolution in UnitsForResolution">
+                                            <td>
+                                                <span>
+                                                    <span class="glyphicon"
+                                                          ng-class="{'Add':'glyphicon-plus','Remove':'glyphicon-ban-circle','Edit':'glyphicon-arrow-right'}[UnitForResolution.Type]"></span>
+                                                    <b>Заявление:</b> {{UnitForResolution.DeclarationNum}}
+                                                    <b>Адрес:</b> {{UnitForResolution.Unit.Address}}
+                                                    <b>Тип:</b> {{UnitForResolution.Unit.UnitType.Name}}
+                                                    <b>Ограничение:</b> {{UnitForResolution.Unit.ModifyLicense.Name}}
+                                                    <b>КПП:</b> {{UnitForResolution.Unit.KPP}}
+                                                    <b>Название:</b> {{UnitForResolution.Unit.ShortName}}
+                                                </span>
+                                                <div ng-show="UnitForResolution.Unit.Status == 'Cancel'">
+                                                    <input class="form-control input-sm" ng-model="UnitForResolution.Unit.StatusComm" placeholder="Причина отказа" />
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div ng-hide="UnitForResolution.Type==Remove">
+                                                    <div class="btn-group" ng-hide="Declaration.Status=='Agreed' || Declaration.Status=='Canceled'">
+                                                        <label class="btn btn-sm" ng-class="{true:'btn-success', false:'btn-default'}[UnitForResolution.Unit.Status=='Agreed']" ng-model="UnitForResolution.Unit.Status" uib-btn-radio="'Agreed'" uib-uncheckable="true" uib-tooltip="Перевести данное подразделение в статус 'Согласовано'" tooltip-append-to-body="true" tooltip-popup-delay="500"><span class="glyphicon glyphicon-ok"></span></label>
+                                                        <label class="btn btn-sm" ng-class="{true:'btn-danger', false:'btn-default'}[UnitForResolution.Unit.Status=='Cancel']" ng-model="UnitForResolution.Unit.Status" uib-btn-radio="'Cancel'" uib-uncheckable="true" uib-tooltip="Перевести данное подразделение в статус 'Отказано'" tooltip-append-to-body="true" tooltip-popup-delay="500"><span class="glyphicon glyphicon-remove"></span></label>
+                                                        <label class="btn btn-sm btn-default" ng-disabled="UnitForResolution.Unit.Status=='None'" ng-model="UnitForResolution.Unit.Status" uib-btn-radio="'None'" uib-uncheckable="true" uib-tooltip="Сбросить решение" tooltip-append-to-body="true" tooltip-popup-delay="500"><span class="glyphicon glyphicon-erase"></span></label>
+                                                    </div>
+                                                </div>
+                                                <div ng-show="UnitForResolution.Type==Remove">
+                                                    Подтверждение не требуется
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row" width="200px">Номер лицензии</th>
+                                            <td>
+                                                <input type="text" ng-readonly="Declaration.LicenseId!=0" class="form-control input-sm standart-input"
+                                                       ng-model="Declaration.LicenseNumber">
+                                                <span class="smaller-font">Номер, выданный на официальном сайте ФС РАР</span>
+                                            </td>
+                                        </tr>
+                                        @*Странно, лицензию можно напечатать не сегодняшним числом?
+                                            <tr ng-hide="Declaration.IsCancelType">
+                                                <th scope="row">Дата выдачи лицензии</th>
+                                                <td>
+                                                    <div class="input-group date-box">
+                                                        <input type="text" class="form-control input-sm"
+                                                               datepicker-options="dateOptions"
+                                                               datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="Declaration.DateDeclaration" is-open="datepickers.dt3" ng-required="false">
+                                                        <span class="input-group-btn">
+                                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt3')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                            </tr>*@
+                                        <tr ng-hide="Declaration.IsCancelType || Declaration.Status=='Canceled'">
+                                            <th scope="row">Номер бланка лицензии</th>
+                                            <td>
+                                                <input type="text" ng-readonly="Declaration.Status == 'Agreed'" class="form-control input-sm standart-input" ng-model="Declaration.LicenseFormNom">
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Номер дела</th>
+                                            <td>
+                                                <input ng-readonly="UIDisabledPM()" type="text" class="form-control input-sm standart-input"
+                                                       ng-model="Declaration.LicenseNomOfBook"  >
+                                                <span class="smaller-font">Внутренний номер дела в архиве учреждения</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-hover table-details" cellspacing="0" cellpadding="0">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row">Председатель комиссии <error-span tag="RulesDispatcher.EntityExt.ResolutionCommissionChairman" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.ResolutionCommissionChairman.Errors.length>0}"><select ng-disabled="Declaration.Status=='Agreed'||Declaration.Status=='Canceled';" class="form-control input-sm" ng-model="Declaration.ResolutionCommissionChairman" ng-options="l as l.Name for l in ResolutionCommissionChairmanList track by l.Id" ng-change="RulesDispatcher.RunAllRules()"></select></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Участники комиссии</th>
+                                            <td>
+                                                <div class="checkbox div-checkbox" ng-repeat="Commissioner in Declaration.ResolutionCommissioners">
+                                                    <input type="checkbox" class="large-checkbox" ng-model="Commissioner.IsChecked"
+                                                           ng-disabled="Declaration.Status=='Agreed'||Declaration.Status=='Canceled';""> {{Commissioner.Name}}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">Визирование лицензии <error-span tag="RulesDispatcher.EntityExt.LicenceApprover" placement="right"></error-span></th>
+                                            <td class="form-group" ng-class="{'has-error' : RulesDispatcher.EntityExt.LicenceApprover.Errors.length>0}"><select ng-disabled="Declaration.Status=='Agreed'||Declaration.Status=='Canceled';" class="form-control input-sm" ng-model="Declaration.LicenceApprover" ng-options="l as l.Name for l in LicenceApproverList track by l.Id" ng-change="RulesDispatcher.RunAllRules()"></select></td>
+                                        </tr>
+                                        @*ResolutionCommissionChairmanList
+                                            ResolutionCommissionerList*@
+
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="row" ng-hide="!Declaration.IsCancelType">
+                            <div class="col-md-12 text-center" ng-hide="Declaration.Status=='Agreed' || Declaration.Status=='Canceled'" style="margin-bottom:20px;margin-top:20px;">
+                                <button class="btn btn-success btn-sm" ng-disabled="IsLoading || Declaration.Status=='Agreed' || Declaration.Status=='Canceled'" ng-click="SetDeclarationAgreed()">Подтвердить прекращение лицензии</button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6" ng-hide="Declaration.IsCancelType || Declaration.Status=='Agreed' || Declaration.Status=='Canceled'">
+                                <div class="alert alert-success text-center" role="alert" style="font-size:larger">Положительное решение</div>
+                                <p При выдаче лицензии заявление автоматически закрывается для редактирования, актуальная информация по организации, ее подразделениям и лицензиям автоматически попадает во все реестры и выгрузки системы.</p>
+                                <div class="col-md-12 text-center">
+                                    <button class="btn btn-success btn-sm" ng-disabled="IsLoading||!Declaration.LicenseFormNom||!Declaration.LicenseNumber" ng-click="SetDeclarationAgreed()">Выдать лицензию</button>
+                                </div>
+                                <div class="col-md-12 text-center" ng-show="Declaration.IsCancelType || Declaration.Status=='Agreed' || Declaration.Status=='Canceled'">
+                                    <button class="btn btn-success btn-sm" ng-disabled="IsLoading" ng-click="SetDeclarationAgreed()">Подтвердить прекращение лицензии</button>
+                                </div>
+                            </div>
+                            <div class="col-md-6" ng-hide="Declaration.IsCancelType || Declaration.Status=='Agreed' || Declaration.Status=='Canceled'">
+                                <div class="alert alert-danger text-center" role="alert" style="font-size:larger">Отрицательное решение</div>
+                                <p>При отклонении заявление автоматически закрывается для редактирования, данные организации, ее подразделений и лицензий не изменяются.</p>
+                                <div class="col-md-12 text-center">
+                                    <button class="btn btn-danger btn-sm" ng-disabled="IsLoading" ng-click="SetDeclarationCancel()">Отклонить заявление</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-center" ng-show="Declaration.Status=='Agreed'">
+                        <div class="alert alert-success" role="alert" style="font-size:larger">Заявление удовлетворено</div>
+                    </div>
+                    <div class="col-md-6 text-center" ng-show="Declaration.Status=='Canceled'">
+                        <div class="alert alert-danger" role="alert" style="font-size:larger">Заявление отклонено</div>
+                    </div>
+
+                </div>
+            </uib-tab>
+            <uib-tab ng-hide="Declaration.Id==0" heading="История статусов">
+                <div class="row" style="padding:15px;">
+                    <div class="col-md-12">
+                        <table class="table table-hover table-details smaller-font" cellspacing="0" cellpadding="0">
+                            <tbody>
+                                <tr>
+                                    <th>Статус</th>
+                                    <th>Дата и время</th>
+                                    <th>ФИО сотрудника</th>
+                                    <th>Комментарий</th>
+                                </tr>
+
+                                <tr ng-repeat="ActionWithDeclaration in Declaration.ActionsWithDeclaration">
+                                    <td>
+                                        {{ActionWithDeclaration.NewStatusRus}}
+                                    </td>
+                                    <td>
+                                        {{ActionWithDeclaration.DateAction}}
+                                    </td>
+                                    <td>
+                                        {{ActionWithDeclaration.Creator}}
+                                    </td>
+                                    <td>
+                                        {{ActionWithDeclaration.Comm}}
+                                    </td>
+                                </tr>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </uib-tab>
+        </uib-tabset>
+    </div>
+</div>
+
+@section scripts
+{
+    <script type="text/javascript" src="@Url.Content("/Scripts/i18n/angular-locale_ru-ru.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/RuleEntity/GetRulesJS/entity/Declaration")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ui-grid-unstable.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/TagEditorDirective.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/angular-sanitize.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/select.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/SelectAddrDirective.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/UnitWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/UnitInDeclarationWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/AddExistUnitsWindow.js")"></script>
+    @*<script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/EgrulWindow.js")"></script>*@
+    <script type="text/javascript" src="@Url.Content("/Scripts/ng-file-upload.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/ErrorsWindow.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadBLOB.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadDocumentModuleDirective.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CascadePrintReportMenu.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/MessageWindow.js")"></script>
+
+    <script>
+        var app = angular.module('DeclarationApp', ['ui.bootstrap','ngAnimate','ngSanitize', 'ui.select', 'ui.grid', 'ui.grid.resizeColumns','ui.grid.edit', 'ui.grid.selection','ngFileUpload','cascadeselectaddr','tageditor','cascadedownloaddocument','cascadeprintreportmenu']);
+
+        app.controller('DeclarationCtrl', function ($scope, $http, $modal, $uibModal, $timeout, $q, uiGridConstants, $interval, Upload) {
+
+            //$scope.files = null;
+
+
+            $scope.IsLoading = true;
+
+            $scope.SelectedRevision = null;
+            $scope.SelectedPaymentOrder = null;
+            $scope.SelectedUnitInDeclarationAdd = null;
+            $scope.SelectedUnitInDeclarationRemove = null;
+            $scope.SelectedUnitInDeclarationEdit = null;
+            $scope.IsCheckedINN = false;
+            $scope.OtherCompanyRef = '';
+            //$scope.EgrulInfoUrl = null;
+            //$scope.$watch('files', function () {
+            //    $scope.upload($scope.files);
+            //});
+
+            $scope.UnitsForResolution = [];
+
+            $scope.SetAllUnitToNewStatus = function(NewStatus)
+            {
+
+                var len_unit = $scope.UnitsForResolution.length;
+                for(i=0;i<len_unit;i++)
+                {
+                    $scope.UnitsForResolution[i].Unit.Status = NewStatus;
+                }
+            }
+
+
+            $scope.GetUnitForResolution = function(unit, type, declarationNom)
+            {
+                return { Type:type, DeclarationNum:declarationNom, Unit:unit};
+            }
+
+            $scope.GenerateUnitsForResolution = function()
+            {
+                $scope.UnitsForResolution = [];
+
+                var len_unit = $scope.Declaration.UnitsAdd.length;
+
+                for(i=0;i<len_unit;i++)
+                {
+                    $scope.UnitsForResolution.push($scope.GetUnitForResolution($scope.Declaration.UnitsAdd[i],'Add',$scope.Declaration.RegNomAll));
+                }
+
+                len_unit = $scope.Declaration.UnitsRemove.length;
+
+                for(i=0;i<len_unit;i++)
+                {
+                    $scope.UnitsForResolution.push($scope.GetUnitForResolution($scope.Declaration.UnitsRemove[i],'Remove',$scope.Declaration.RegNomAll));
+                }
+
+                len_unit = $scope.Declaration.UnitsEdit.length;
+
+                for(i=0;i<len_unit;i++)
+                {
+                    $scope.UnitsForResolution.push($scope.GetUnitForResolution($scope.Declaration.UnitsEdit[i],'Edit',$scope.Declaration.RegNomAll));
+                }
+
+                var len_dec_in_pack = $scope.Declaration.DeclarationsInPack.length;
+                for(j=0;j<len_dec_in_pack;j++)
+                {
+                    var dec_in_pack = $scope.Declaration.DeclarationsInPack[j];
+
+                    if (dec_in_pack.IsSelected)
+                    {
+                        len_unit = dec_in_pack.UnitsAdd.length;
+
+                        for(i=0;i<len_unit;i++)
+                        {
+                            $scope.UnitsForResolution.push($scope.GetUnitForResolution(dec_in_pack.UnitsAdd[i],'Add',dec_in_pack.RegNom));
+                        }
+
+                        len_unit = dec_in_pack.UnitsRemove.length;
+
+                        for(i=0;i<len_unit;i++)
+                        {
+                            $scope.UnitsForResolution.push($scope.GetUnitForResolution(dec_in_pack.UnitsRemove[i],'Remove',dec_in_pack.RegNom));
+                        }
+
+                        len_unit = dec_in_pack.UnitsEdit.length;
+
+                        for(i=0;i<len_unit;i++)
+                        {
+                            $scope.UnitsForResolution.push($scope.GetUnitForResolution(dec_in_pack.UnitsEdit[i],'Edit',dec_in_pack.RegNom));
+                        }
+                    }
+                }
+            }
+
+            //documents
+
+            //$scope.log = '';
+
+
+            //end documents
+
+
+
+            $scope.dateOptions = {
+
+                startingDay: 1,
+                "show-weeks": false
+            };
+
+            $scope.datepickers = {
+                dt1: false,
+                dt2: false,
+                dt3: false,
+                dt4:false
+            }
+
+
+            $scope.openforpaymentorder = function ($event, entity) {
+                $event.preventDefault();
+                $event.stopPropagation();
+
+                entity.datepicker = true;
+            };
+
+            $scope.open = function ($event, which) {
+                $event.preventDefault();
+                $event.stopPropagation();
+
+                $scope.datepickers[which] = true;
+            };
+
+            $scope.param_array = @Html.Raw(Model) ;
+
+            $scope.type = $scope.param_array[0];
+            $scope.id = $scope.param_array[1];
+            if ($scope.param_array[2])
+            {
+                $scope.activeTabIndex = $scope.param_array[2];
+            }
+            else
+            {
+                $scope.activeTabIndex = 0;
+            }
+
+            $scope.SelectUnitsTab = function()
+            {
+                window.setTimeout(function () {
+                    $(window).resize();
+                    $(window).resize();
+                }, 250);
+            };
+
+            $scope.SelectRevisionsTab = function()
+            {
+                window.setTimeout(function () {
+                    $(window).resize();
+                    $(window).resize();
+                }, 250);
+            };
+
+            @*$scope.SaveDeclaration = function()
+            {
+                $scope.IsLoading = true;
+                $http.post('@Url.Action("AddDeclaration", "Declaration")', { dec:$scope.Declaration, return_declaration:false, sosMode:false })
+                .success(function (data) {
+
+                    //if (history!=null)
+                    //{
+                    //    history.pushState( null , null, '/Declaration/Detail/Edit/'+data );
+                    //}
+
+                    window.location.href = '@Url.Action("Index", "Declaration")';
+                });
+            };*@
+
+            $scope.JustSaveDeclaration = function(sosMode)
+            {
+                $scope.IsLoading = true;
+                var tmpRegNumAll = $scope.Declaration.RegNomAll;
+                $http.post('@Url.Action("AddDeclaration", "Declaration")', { dec:$scope.Declaration, return_declaration:true, sosMode: sosMode })
+                    .success(function (data) {
+
+                        $scope.Declaration = data;
+                        //$scope.AddUnitGridOptions.data = $scope.Declaration.Units;
+                        //$scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                        //$scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+                        // $scope.DocumentGridOptions.data = $scope.Declaration.Documents;
+
+                        $scope.AddUnitGridOptions.data = $scope.Declaration.UnitsAdd;
+                        $scope.RemoveUnitGridOptions.data = $scope.Declaration.UnitsRemove;
+                        $scope.EditUnitGridOptions.data = $scope.Declaration.UnitsEdit;
+                        $scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                        $scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+
+                        $scope.RulesDispatcher = InitDispatcher($scope.Declaration.TagsTable,$scope.Declaration,[],["KPP","Email","OGRN","INN","CountYears","FullName","ShortName"]);
+                        if ($scope.Declaration.Status == 'Draft')
+                        {
+                            $scope.CheckINN();
+                        }
+                        if (!sosMode)
+                        {
+                            $scope.GenerateUnitsForResolution();
+                            $scope.IsLoading = false;
+                        }
+                        else
+                        {
+                            $scope.Declaration.RegNomAll = tmpRegNumAll;
+                            $http.post('@Url.Action("SwitchDeclarationNumber", "Declaration")', { dvm: $scope.Declaration })
+                                .success(function (data) {
+                                    $scope.IsLoading = false;
+                                    if (data.ErrMsg)
+                                    {
+                                        $scope.IsEditMode = true;
+                                        $scope.ShowMessage({ Message: data.ErrMsg });
+                                    }
+                                });
+
+                        }
+
+                        //if (window.history!=null)
+                        //{
+                        //    window.history.replaceState( null , "", "/Declaration/Detail/Edit/"+data.Id );
+                        //}
+
+                    });
+            };
+
+            $scope.RefreshCurrentDeclaration = function()
+            {
+                if ($scope.type == "Edit")
+                {
+                    window.location.href = "/Declaration/Detail/Edit/"+$scope.Declaration.Id; // + "/" + $scope.activeTabIndex;
+                }
+                else
+                {
+                    if (window.history!=null)
+                    {
+                        window.history.replaceState( null , "", "/Declaration/Detail/Edit/"+$scope.Declaration.Id ); // + "/" + $scope.activeTabIndex );
+                    }
+                }
+            }
+
+            $scope.SetDeclarationConsideration = function()
+            {
+                if ($scope.Declaration.Rights.CanSetDeclarationStatusInWork)
+                {
+                    $scope.IsLoading = true;
+                    $http.post('@Url.Action("SetDeclarationConsideration", "Declaration")', { dec:$scope.Declaration })
+                    .success(function (data) {
+                        if (data) {
+                            $scope.IsLoading = false;
+                            if (data.ErrMsg)
+                            {
+                                $scope.ShowMessage({ Message: data.ErrMsg });
+                            }
+                            else
+                            {
+                                $scope.Declaration = data.Item;
+
+                                $scope.AddUnitGridOptions.data = $scope.Declaration.UnitsAdd;
+                                $scope.RemoveUnitGridOptions.data = $scope.Declaration.UnitsRemove;
+                                $scope.EditUnitGridOptions.data = $scope.Declaration.UnitsEdit;
+                                $scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                                $scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+
+                                $scope.RulesDispatcher = InitDispatcher($scope.Declaration.TagsTable,$scope.Declaration,[],["KPP","Email","OGRN","INN","CountYears","FullName","ShortName"]);
+                                $scope.GenerateUnitsForResolution();
+                                $scope.RefreshCurrentDeclaration();
+
+                            }
+                        }
+                    });
+                }
+                else
+                {
+                    $scope.ShowErrorsWindow(["У вас нет прав на регистрацию заявления!"]);
+                }
+
+
+            };
+
+            $scope.SetDeclarationCancel = function()
+            {
+                var AllErrors = $scope.RulesDispatcher.GetAllErrors();
+                if (AllErrors.length>0)
+                {
+                    if (!$scope.Declaration.Rights.CanSetDeclarationStatusCompleted)
+                    {
+                        AllErrors.push("У вас нет прав на принятие решения по заявлению!");
+                    }
+                    $scope.ShowErrorsWindow(AllErrors);
+                }
+                else
+                {
+                    if ($scope.Declaration.Rights.CanSetDeclarationStatusCompleted)
+                    {
+                        $scope.IsLoading = true;
+                        $http.post('@Url.Action("SetDeclarationCancel", "Declaration")', { dec:$scope.Declaration })
+                        .success(function (data) {
+                            $scope.IsLoading = false;
+                            if (data.ErrMsg)
+                            {
+                                $scope.ShowMessage({ Message: data.ErrMsg });
+                            }
+                            else
+                            {
+                                //window.location.href = '@Url.Action("Index", "Declaration")';
+                                $scope.RefreshCurrentDeclaration();
+                            }
+                        });
+                    }
+                    else
+                    {
+                        $scope.ShowErrorsWindow(["У вас нет прав на принятие решения по заявлению!"]);
+                    }
+                }
+            };
+
+            $scope.ShowMessage = function (ParWindowsOptions) {
+                var modalInstance = $uibModal.open({
+                    templateUrl: '@Url.Action("MessageWindow", "Home")',
+                    controller: 'MessageWindowModalInstanceCtrl',
+                    size: 'md',
+                    resolve: {
+                        WindowsOptions: function () {
+                            return ParWindowsOptions;
+                        }
+                    }
+                });
+                modalInstance.result.then(function () {
+                    if (ParWindowsOptions.funcOk != undefined) {
+                        ParWindowsOptions.funcOk();
+                    }
+                }, function () {
+
+                });
+            };
+
+            $scope.SetDeclarationAgreed = function()
+            {
+                var AllErrors = $scope.RulesDispatcher.GetAllErrors();
+                if (!$scope.Declaration.IsCancelType)
+                {
+                    if ($.grep($scope.UnitsForResolution,function(value){ return value.Unit.Status=='None';}).length>0)
+                    {
+                        AllErrors.push("Не для всех обособленных подразделений было принято решение!");
+                    }
+                }
+
+                if (AllErrors.length>0)
+                {
+                    if (!$scope.Declaration.Rights.CanSetDeclarationStatusCompleted)
+                    {
+                        AllErrors.push("У вас нет прав на принятие решения по заявлению!");
+                    }
+                    $scope.ShowErrorsWindow(AllErrors);
+                }
+                else
+                {
+                    if ($scope.Declaration.Rights.CanSetDeclarationStatusCompleted)
+                    {
+                        $scope.IsLoading = true;
+                        $http.post('@Url.Action("SetDeclarationAgreed", "Declaration")', { dec:$scope.Declaration })
+                        .success(function (data) {
+                            if (data) {
+                                $scope.IsLoading = false;
+                                if (data.ErrMsg)
+                                {
+                                    $scope.ShowMessage({ Message: data.ErrMsg });
+                                }
+                                else
+                                {
+                                    //window.location.href = '@Url.Action("Index", "Declaration")';
+                                    $scope.RefreshCurrentDeclaration();
+                                }
+                            }
+                        });
+                    }
+                    else
+                    {
+                        $scope.ShowErrorsWindow(["У вас нет прав на принятие решения по заявлению!"]);
+                    }
+                }
+            };
+
+            $scope.SetDeclarationStartRevision = function()
+            {
+                if ($scope.Declaration.Rights.CanSetDeclarationStatusRevision)
+                {
+                    $scope.IsLoading = true;
+
+                    $scope.Declaration.Status = 'StartRevision';
+
+                    $http.post('@Url.Action("AddDeclaration", "Declaration")', { dec:$scope.Declaration, return_declaration:true, sosMode:false })
+                    .success(function (data) {
+
+                        $scope.Declaration = data;
+                        //$scope.AddUnitGridOptions.data = $scope.Declaration.Units;
+                        //$scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                        //$scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+
+                        $scope.AddUnitGridOptions.data = $scope.Declaration.UnitsAdd;
+                        $scope.RemoveUnitGridOptions.data = $scope.Declaration.UnitsRemove;
+                        $scope.EditUnitGridOptions.data = $scope.Declaration.UnitsEdit;
+                        $scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                        $scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+
+
+                        $scope.RulesDispatcher = InitDispatcher($scope.Declaration.TagsTable,$scope.Declaration,[],["KPP","Email","OGRN","INN","CountYears","FullName","ShortName"]);
+                        if ($scope.Declaration.Status == 'Draft')
+                        {
+                            $scope.CheckINN();
+                        }
+                        $scope.GenerateUnitsForResolution();
+                        $scope.IsLoading = false;
+
+
+                    });
+                }
+                else
+                {
+                    $scope.ShowErrorsWindow(["У вас нет прав для перевода заявления в статус 'Проверки'!"]);
+                }
+            };
+
+
+            $scope.CheckINN = function(){
+                if ($scope.Declaration.Company.INN!=null&&($scope.Declaration.Company.INN.length==10||$scope.Declaration.Company.INN.length==12))
+                {
+                    $http.post('@Url.Action("CheckINN", "Company")', { inn:$scope.Declaration.Company.INN })
+                    .success(function (data) {
+                        $scope.IsCheckedINN = true;
+                        $scope.OtherCompanyRef = data;
+                    });
+                }
+                else
+                {
+                    $scope.IsCheckedINN = false;
+                }
+                $scope.RulesDispatcher.RunAllRules();
+            };
+
+            $scope.RemoveUnitInDeclarationAdd = function(UnitInDeclaration)
+            {
+                var new_list = $.grep($scope.Declaration.UnitsAdd,function(value){return value!=UnitInDeclaration;});
+                $scope.Declaration.UnitsAdd = new_list;
+                $scope.AddUnitGridOptions.data =$scope.Declaration.UnitsAdd;
+
+                $scope.SelectedUnitInDeclarationAdd = null;
+
+            }
+
+            $scope.RemoveUnitInDeclarationEdit = function(UnitInDeclaration)
+            {
+                var new_list = $.grep($scope.Declaration.UnitsEdit,function(value){return value!=UnitInDeclaration;});
+                $scope.Declaration.UnitsEdit = new_list;
+                $scope.EditUnitGridOptions.data =$scope.Declaration.UnitsEdit;
+
+                $scope.SelectedUnitInDeclarationEdit = null;
+
+            }
+
+            $scope.RemoveUnitInDeclarationRemove = function(UnitInDeclaration)
+            {
+                $scope.Declaration.UnitsEdit.push(UnitInDeclaration);
+                $scope.EditUnitGridOptions.data =$scope.Declaration.UnitsEdit;
+
+
+
+                var new_list = $.grep($scope.Declaration.UnitsRemove,function(value){return value!=UnitInDeclaration;});
+                $scope.Declaration.UnitsRemove = new_list;
+                $scope.RemoveUnitGridOptions.data =$scope.Declaration.UnitsRemove;
+
+                $scope.SelectedUnitInDeclarationRemove = null;
+
+                $scope.GenerateUnitsForResolution();
+            }
+
+            function rowTemplateEdit() {
+                return '<div ng-dblclick="grid.appScope.rowEditDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+            function rowTemplateAdd() {
+                return '<div ng-dblclick="grid.appScope.rowAddDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+            function rowTemplateRemove() {
+                return '<div  ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+            $scope.rowAddDblClick = function (row) {
+                $scope.openEditUnitInDeclarationWindow($scope.SelectedUnitInDeclarationAdd,'Редактирование','Add')
+            };
+            $scope.rowEditDblClick = function (row) {
+                $scope.openEditUnitInDeclarationWindow($scope.SelectedUnitInDeclarationEdit,'Редактирование','Edit')
+            };
+
+
+            function rowRevisionTemplate() {
+                return '<div ng-dblclick="grid.appScope.rowDblClickRevision(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+            $scope.rowDblClickRevision = function (row) {
+                window.location.href = '/Revision/Detail/Edit/'+$scope.SelectedRevision.Id;
+            };
+
+            $http.get('/LegalFormType/GetLegalFormTypeDictionaryView')
+                    .success(function (data) {
+                        $scope.LegalFormTypeList = data;
+                    });
+
+            //$http.get('/ReasonForRenew/GetReasonForRenewDictionaryView')
+            //        .success(function (data) {
+            //            $scope.ReasonForRenewList = data;
+            //        });
+
+            $scope.UnitGridOptions = {
+                rowTemplate: rowUnitTemplate(),
+                enableGridMenu: true,
+                enablePinning: true,
+                //enableHighlighting: true,
+                multiSelect: false,
+                noUnselect: true,
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableFiltering: false,
+                columnDefs: [
+                    { name: ' ', field: 'IsActive', width: "25", cellTemplate: '<div class="ui-grid-cell-contents"><span class="glyphicon" ng-class="{true:\'glyphicon-ok\',false:\'glyphicon-remove\'}[row.entity.IsActive]"></span></div>' },
+                    { name: 'Адрес', field: 'Address', width: "450" },
+                    { name: 'Название', field: 'FullName', width: "180", visible: false },
+                    { name: 'Сокращенно', field: 'ShortName', width: "120", visible: false },
+                    { name: 'КПП', field: 'KPP', width: "80" },
+                    { name: 'Начало', field: 'DateBegin', width: "80" },
+                    { name: 'Конец', field: 'DateEnd', width: "80" }
+                    //,
+                    //{ name: 'Тип', field: 'TypeUnit.Name'}
+                    // ng-class="{true:"glyphicon-ok",false:"glyphicon-remove"}[row.entity.IsActive]"
+                ],
+                onRegisterApi: function (UnitGridApi) {
+                    $scope.UnitGridApi = UnitGridApi;
+                    $scope.unit_grid = UnitGridApi.grid;
+
+                    $scope.UnitGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectUnit);
+
+                    $interval(function () {
+                        $scope.UnitGridApi.core.handleWindowResize();
+                    }, 10, 500);
+                }
+            };
+
+            function rowUnitTemplate() {
+                return '<div ng-dblclick="grid.appScope.rowUnitEditDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" style="-webkit-user-select: text;user-select:text" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+            $scope.SelectUnit = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedUnit = row.entity;
+                }
+
+            };
+
+
+            $scope.rowUnitEditDblClick = function (row) {
+                $scope.openEditUnitWindow($scope.SelectedUnit)
+            };
+
+            $scope.SelectedUnit = null;
+
+            $scope.openEditUnitWindow = function (selectedUnit) {
+
+                var ContentModalInstance = $uibModal.open({
+                    templateUrl: '/Home/UnitWindowDetail',
+                    controller: 'EditUnitModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        UnitId: function () {
+                            return selectedUnit.Id;
+                        }
+
+                    }
+
+                });
+
+                ContentModalInstance.result.then(function (Unit) {
+                    // Сохранение карточки обособки
+                    $http.post('/Unit/Save', { unitVM: Unit })
+                            .success(function (data) {
+                                selectedUnit.Addr = Unit.Addr;
+                                selectedUnit.FSRARAddr = Unit.FSRARAddr;
+                                selectedUnit.Address = Unit.Address;
+                                selectedUnit.AddressForDocument = Unit.AddressForDocument;
+                                selectedUnit.KPP = Unit.KPP;
+                                selectedUnit.ShortName = Unit.ShortName;
+                                selectedUnit.FullName = Unit.FullName;
+                                selectedUnit.ModifyLicense = Unit.ModifyLicense;
+                                selectedUnit.UnitType = Unit.UnitType;
+                                selectedUnit.PostalCode = Unit.PostalCode;
+                            });
+                    //$scope.GenerateUnitsForResolution();
+                }, function () {
+
+                });
+            };
+
+
+            $scope.AddUnitGridOptions = {
+                rowTemplate: rowTemplateAdd(),
+                enableGridMenu: true,
+                enablePinning: true,
+                //enableHighlighting: true,
+                multiSelect: false,
+                noUnselect: true,
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableFiltering: false,
+                columnDefs: [
+                    { name: 'Адрес', field: 'Address', width:"380"},
+                    { name: 'Название', field: 'ShortName', width:"140"},
+                    { name: 'Тип объекта', field: 'UnitType.Name', width:"120"},
+                    { name: 'Огр.', field: 'ModifyLicense.Name', width:"100"},
+                    { name: 'КПП', field: 'KPP', width:"100"},
+                    { name: ' ', field: 'Status', width: "20", cellTemplate: '<div class="ui-grid-cell-contents"><span class="glyphicon" ng-class="{\'None\':\'glyphicon-question-sign\',\'Agreed\':\'glyphicon-ok\',\'Cancel\':\'glyphicon-remove\'}[row.entity.Status]" tooltip-append-to-body="true"  uib-tooltip="{{row.entity.StatusRus}}"></span></div>' },
+                    { name: 'Комм.', field: 'StatusComm', width: "100" }
+
+                ],
+                onRegisterApi: function (AddUnitGridApi) {
+                    $scope.AddUnitGridApi = AddUnitGridApi;
+                    $scope.add_unit_grid = AddUnitGridApi.grid;
+
+                    $scope.AddUnitGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectUnitAdd);
+
+                }
+            };
+
+            $scope.EditUnitGridOptions = {
+                rowTemplate: rowTemplateEdit(),
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableSorting: true,
+
+                columnDefs: [
+                    { name: 'Адрес', field: 'Address', width:"380"},
+                    { name: 'Название', field: 'ShortName', width:"140"},
+                    { name: 'Тип объекта', field: 'UnitType.Name', width:"120"},
+                    { name: 'Огр.', field: 'ModifyLicense.Name', width:"100"},
+                    { name: 'КПП', field: 'KPP', width:"100"},
+                    { name: ' ', field: 'Status', width: "20", cellTemplate: '<div class="ui-grid-cell-contents"><span class="glyphicon" ng-class="{\'None\':\'glyphicon-question-sign\',\'Agreed\':\'glyphicon-ok\',\'Cancel\':\'glyphicon-remove\'}[row.entity.Status]" tooltip-append-to-body="true" uib-tooltip="{{row.entity.StatusRus}}"></span></div>' },
+                    { name: 'Комм.', field: 'StatusComm', width: "100" }
+
+                ],
+                onRegisterApi: function (EditUnitGridApi) {
+                    $scope.EditUnitGridApi = EditUnitGridApi;
+                    $scope.edit_unit_grid = EditUnitGridApi.grid;
+
+                    $scope.EditUnitGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectUnitEdit);
+
+                }
+            };
+
+            function rowTemplate() {
+                return '<div ng-dblclick="grid.appScope.rowDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" style="-webkit-user-select: text;user-select:text" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader }"  ui-grid-cell></div>';
+            }
+
+
+            $scope.RemoveUnitGridOptions = {
+                rowTemplate: rowTemplateRemove(),
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableSorting: true,
+
+                columnDefs: [
+                    { name: 'Адрес', field: 'Address', width:"380"},
+                    { name: 'Название', field: 'ShortName', width:"140"},
+                    { name: 'Тип объекта', field: 'UnitType.Name', width:"120"},
+                    { name: 'Огр.', field: 'ModifyLicense.Name', width:"100"},
+                    { name: 'КПП', field: 'KPP', width:"100"}
+
+                ],
+                onRegisterApi: function (RemoveUnitGridApi) {
+                    $scope.RemoveUnitGridApi = RemoveUnitGridApi;
+                    $scope.remove_unit_grid = RemoveUnitGridApi.grid;
+
+                    $scope.RemoveUnitGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectUnitRemove);
+
+                }
+            };
+
+            $scope.RevisionGridOptions = {
+                rowTemplate: rowRevisionTemplate(),
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableSorting: true,
+
+                columnDefs: [
+                    { name: 'Тип проверки', field: 'TypeOfRevision.Name', width:"150"},
+                    { name: 'Ответственный', field: 'EmployeeFIO', width:"150"},
+                    { name: 'Статус', field: 'StatusRus', width:"150"},
+                    { name: 'Результат', field: 'ResultOfRevision.Name', width:"200"},
+                    { name: 'Дата начала', field: 'DateStart', width:"150"},
+                    { name: 'Дата окончания', field: 'DateEnd', width:"150"}
+                ],
+                onRegisterApi: function (RevisionGridApi) {
+                    $scope.RevisionGridApi = RevisionGridApi;
+                    $scope.revision_grid = RevisionGridApi.grid;
+
+                    $scope.RevisionGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectRevision);
+
+                }
+            };
+
+            $scope.PaymentOrderGridOptions = {
+                rowTemplate: '<div ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader, \'text-warning\':row.entity.IsChanged&&!row.entity.IsAdded, \'text-success\':row.entity.IsAdded,  \'text-danger\':row.entity.IsDeleted }"  ui-grid-cell></div>',
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableFiltering: false,
+                columnDefs: [{ name: ' ', enableCellEdit: false, width: "25", enableColumnMenu: false, cellTemplate: '<div class="ui-grid-cell-contents"><span class="glyphicon" ng-class="{\'glyphicon-trash\':row.entity.IsDeleted, \'glyphicon-plus\':row.entity.IsAdded, \'glyphicon-pencil\':row.entity.IsChanged&&!row.entity.IsAdded, \'glyphicon-ok\':!(row.entity.IsAdded||row.entity.IsChanged||row.entity.IsDeleted) }"></span></div>' },
+                             { name: 'Номер', field: 'Nom', enableCellEdit: true },
+                             { name: 'Дата', field: 'Date', enableCellEdit: false,cellTemplate:'<div class="ui-grid-cell-contents"><div class="input-group date-box"><input type="text" class="form-control input-sm" datepicker-options="grid.appScope.dateOptions" datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="row.entity.Date" is-open="row.entity.datepicker" ng-dblclick="row.entity.datepicker=true" datepicker-append-to-body="true"></div></div>' },
+                             { name: 'Сумма', field: 'Summ', enableCellEdit: true },
+                             { name: 'Комментарий', field: 'Comm', enableCellEdit: true }
+                ],
+                onRegisterApi: function (GridApi) {
+                    $scope.PaymentOrderGridApi = GridApi;
+                    $scope.PaymentOrderGrid = GridApi.grid;
+
+                    $scope.PaymentOrderGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectPaymentOrder);
+
+                    GridApi.edit.on.afterCellEdit($scope, function (rowEntity, colDef, newValue, oldValue) {
+                        if (newValue != oldValue) {
+                            rowEntity.IsChanged = true;
+                        }
+
+                    });
+                }
+            };
+
+            $http.post('@Url.Action("GetDeclaration", "Declaration")', { type: $scope.type, id: $scope.id })
+                .success(function (data) {
+                    $scope.Declaration = data;
+                    $scope.AddUnitGridOptions.data = $scope.Declaration.UnitsAdd;
+                    $scope.RemoveUnitGridOptions.data = $scope.Declaration.UnitsRemove;
+                    $scope.EditUnitGridOptions.data = $scope.Declaration.UnitsEdit;
+                    $scope.RevisionGridOptions.data = $scope.Declaration.Revisions;
+                    $scope.PaymentOrderGridOptions.data = $scope.Declaration.PaymentOrders;
+                    //$scope.DocumentGridOptions.data = $scope.Declaration.Documents;
+                    $scope.RulesDispatcher = InitDispatcher($scope.Declaration.TagsTable,$scope.Declaration,[],["KPP","Email","OGRN","INN","CountYears","FullName","ShortName"]);
+                    if ($scope.Declaration.Status == 'Draft')
+                    {
+                        $scope.CheckINN();
+                    }
+
+                    $scope.IsLoading = false;
+
+                    $scope.GenerateUnitsForResolution();
+
+                    $http.post('/Unit/UnitsForCompany', { id_company: $scope.Declaration.Company.Id })
+                                                    .success(function (data) {
+                                                        $scope.UnitGridOptions.data = data;
+                                                        // $scope.EditUnitGridOptions.data = data;
+                                                    });
+
+                    $http.post('/People/GetPeopleDictionaryView', {roleName : 'LicenceApprover', addUndefined: false })
+                        .success(function (data) {
+                            $scope.LicenceApproverList = data;
+                            if ((!$scope.Declaration.LicenceApprover || $scope.Declaration.LicenceApprover.Id == 0) && data.length > 0)
+                            {
+                                $scope.Declaration.LicenceApprover = data[0];
+                            }
+                        });
+
+                    $http.post('/People/GetPeopleDictionaryView', {roleName : 'ResolutionCommissionChairman', addUndefined: false })
+                        .success(function (data) {
+                            $scope.ResolutionCommissionChairmanList = data;
+                            if ((!$scope.Declaration.ResolutionCommissionChairman || $scope.Declaration.ResolutionCommissionChairman.Id == 0) && data.length > 0)
+                            {
+                                $scope.Declaration.ResolutionCommissionChairman = data[0];
+                            }
+                        });
+
+                    //$http.post('/TypeOfResolution/GetTypeOfResolutionDictionaryView',{filter:$scope.Declaration.TypeOfType})
+                    //.success(function (data) {
+                    //    $scope.TypeOfResolutionList = data;
+
+                    //});
+
+                    //$scope.ChangeAddrContext($scope.IdAddressProperty);
+                });
+
+            $scope.AddPaymentOrder = function()
+            {
+                //$scope.PaymentOrderGridOptions.data.push({ Id: 0, IsAdded: true, IsDeleted: false, IsChanged: false });
+                $scope.Declaration.PaymentOrders.push({ Id: 0, IsAdded: true, IsDeleted: false, IsChanged: false });
+            }
+
+            $scope.AbortDeletePaymentOrder= function (SelectedPaymentOrder) {
+                SelectedPaymentOrder.IsDeleted = false;
+            };
+
+            $scope.RemovePaymentOrder = function (SelectedPaymentOrder)
+            {
+                if (SelectedPaymentOrder.IsAdded) {
+                    //$scope.PaymentOrderGridOptions.data.splice($.inArray(SelectedPaymentOrder, $scope.PaymentOrderGridOptions.data), 1);
+                    // $scope.SelectedPaymentOrder = null;
+                    $scope.Declaration.PaymentOrders.splice($.inArray(SelectedPaymentOrder, $scope.Declaration.PaymentOrders), 1);
+                }
+                else {
+                    SelectedPaymentOrder.IsDeleted = true;
+                }
+            }
+
+            $scope.SelectPaymentOrder = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedPaymentOrder = row.entity;
+                }
+
+            };
+
+            $scope.SelectUnitAdd = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedUnitInDeclarationAdd = row.entity;
+                }
+
+            };
+
+            $scope.SelectUnitEdit = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedUnitInDeclarationEdit = row.entity;
+                }
+
+            };
+
+            $scope.SelectUnitRemove = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedUnitInDeclarationRemove = row.entity;
+                }
+
+            };
+
+            $scope.SelectRevision = function (row, event) {
+
+                if (row.isSelected == true) {
+                    // $scope.IdAddressProperty = row.entity.Id;
+                    $scope.SelectedRevision = row.entity;
+                }
+
+            };
+
+            $scope.RemoveDraftDeclaration = function()
+            {
+                $scope.IsLoading = true;
+                $http.post('/Declaration/RemoveDeclarationDraft',{id:$scope.Declaration.Id})
+                    .success(function (data) {
+                        if (data == "")
+                        {
+                            window.location.href = '@Url.Action("Index", "Declaration")';
+                        }
+                        else
+                        {
+                            $scope.ShowErrorsWindow([data]);
+                            $scope.IsLoading = false;
+                        }
+
+                    });
+            }
+
+            $scope.CopyAddress = function()
+            {
+                $scope.Declaration.Company.PostalAddress = $scope.Declaration.Company.AddressForDocument;
+                $scope.Declaration.Company.PostalAddressHouse = $scope.Declaration.Company.AddressHouse;
+                $scope.Declaration.Company.PostalAddressBuildNom = $scope.Declaration.Company.AddressBuildNom;
+                $scope.Declaration.Company.PostalAddressLitera = $scope.Declaration.Company.AddressLitera;
+                $scope.Declaration.Company.PostalAddressRoomNom = $scope.Declaration.Company.AddressRoomNom;
+                $scope.Declaration.Company.FSRARPostalAddress = $scope.Declaration.Company.FSRARAddress;
+                $scope.Declaration.Company.id_postal_addr = $scope.Declaration.Company.id_addr;
+
+            };
+
+            $scope.CopyMasterName = function(){
+                $scope.Declaration.VakeelName = $scope.Declaration.MasterName;
+            }
+
+            $scope.CopyLegalFormFullName = function(){
+                $scope.Declaration.Company.FullName = $scope.Declaration.Company.LegalFormType.FullName + " " + $scope.Declaration.Company.CompanyName;
+            }
+            $scope.CopyLegalFormShortName = function(){
+                $scope.Declaration.Company.ShortName = $scope.Declaration.Company.LegalFormType.Name + " " + $scope.Declaration.Company.CompanyName;
+            }
+
+            $scope.openEditUnitInDeclarationWindow = function (SelectedUnitInDeclaration, header_w, type) {
+
+                var ContentModalInstance = $modal.open({
+                    templateUrl: '/Home/UnitInDeclarationWindowDetail',
+                    controller: 'EditUnitInDeclarationModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        Unit: function () {
+                            if (SelectedUnitInDeclaration == null) {
+                                //return  {Id:-1,ShortName:'',FullName:'',id_addr:-1, AddressForDocument:'',AddressBuildNom:'',AddressLitera:'',AddressRoomNom:'',AddressHouse:'', Status:'None', StatusComm:'', Type:type};
+                                return {
+                                    Id:-1,
+                                    id_addr:1,
+                                    AddressForDocument:'',
+                                    AddressBuildNom:'',
+                                    AddressLitera:'',
+                                    AddressRoomNom:'',
+                                    AddressHouse:'',
+                                    PostalCode:'',
+                                    //ShortName:$scope.Declaration.Company.ShortName,
+                                    //FullName:$scope.Declaration.Company.FullName,
+                                    //KPP:$scope.Declaration.Company.KPP,
+                                    //id_addr:$scope.Declaration.Company.id_addr,
+                                    //AddressForDocument:$scope.Declaration.Company.AddressForDocument,
+                                    //AddressBuildNom:$scope.Declaration.Company.AddressBuildNom,
+                                    //AddressLitera:$scope.Declaration.Company.AddressLitera,
+                                    //AddressRoomNom:$scope.Declaration.Company.AddressRoomNom,
+                                    //AddressHouse:$scope.Declaration.Company.AddressHouse,
+                                    Status:'None',
+                                    StatusComm:'',
+                                    Type:type
+                                };
+                            }
+                            else {
+                                return SelectedUnitInDeclaration;
+                            }
+
+
+                        },
+                        HeaderWindow: function () {
+                            return header_w;
+                        }
+
+                    }
+
+                });
+
+                var NowUnitInDeclaration = null;
+
+                var NowListUnits = null;
+
+                if (type == 'Add')
+                {
+                    NowUnitInDeclaration = $scope.SelectedUnitInDeclarationAdd;
+                    NowListUnits = $scope.Declaration.UnitsAdd;
+                }
+                else
+                {
+                    NowUnitInDeclaration = $scope.SelectedUnitInDeclarationEdit;
+                    NowListUnits = $scope.Declaration.UnitsEdit;
+                }
+
+                ContentModalInstance.result.then(function (UnitInDeclaration) {
+
+                    if (UnitInDeclaration.Id==-1)
+                    {
+                        UnitInDeclaration.Id = 0;
+                        NowListUnits.push(UnitInDeclaration);
+                    }
+                    else
+                    {
+                        NowUnitInDeclaration.ShortName = UnitInDeclaration.ShortName;
+                        NowUnitInDeclaration.FullName = UnitInDeclaration.FullName;
+                        NowUnitInDeclaration.id_addr = UnitInDeclaration.id_addr;
+                        NowUnitInDeclaration.KPP = UnitInDeclaration.KPP;
+                        NowUnitInDeclaration.id_addr = UnitInDeclaration.id_addr;
+                        NowUnitInDeclaration.Address = UnitInDeclaration.Address;
+                        NowUnitInDeclaration.AddressForDocument = UnitInDeclaration.AddressForDocument;
+                        NowUnitInDeclaration.UnitType = UnitInDeclaration.UnitType;
+                        NowUnitInDeclaration.ModifyLicense = UnitInDeclaration.ModifyLicense;
+                        NowUnitInDeclaration.FSRARAddress = UnitInDeclaration.FSRARAddress;
+                        NowUnitInDeclaration.PostalCode = UnitInDeclaration.PostalCode;
+                        NowUnitInDeclaration.AddressHouse = UnitInDeclaration.AddressHouse;
+                        NowUnitInDeclaration.AddressBuildNom = UnitInDeclaration.AddressBuildNom;
+                        NowUnitInDeclaration.AddressLitera = UnitInDeclaration.AddressLitera;
+                        NowUnitInDeclaration.AddressRoomNom = UnitInDeclaration.AddressRoomNom;
+                        NowUnitInDeclaration.Type = type;
+
+                    }
+                    $scope.GenerateUnitsForResolution();
+                }, function () {
+
+                });
+            };
+
+            $scope.DeleteUnitsRemoveFromGridUnitsEdit = function(){
+                var lst_remove = $scope.RemoveUnitGridOptions.data;
+                var lst_edit = $scope.EditUnitGridOptions.data;
+
+                if(lst_remove.length > 0){
+                    for(i = 0; i < lst_remove.length; i++){
+                        for(j = 0; j < lst_edit.length; j++){
+                            if(lst_edit[j].UnitId == lst_remove[i].UnitId){
+                                lst_edit.splice(j,1);
+                            }
+                        }
+                    }
+                    $scope.Declaration.UnitsEdit = lst_edit;
+                }
+            };
+
+            $scope.openAddUnitInDeclarationWindow = function (type) {
+
+                var ContentModalInstance = $modal.open({
+                    templateUrl: '/Home/AddExistUnitsWindow',
+                    controller: 'AddExistUnitsModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        UnitsId: function () {
+
+                            var id_list =null;
+
+                            if (type=="Add")
+                            {
+                                var exist_units =$.grep($scope.AddUnitGridOptions.data,function(val){return val.UnitId>0;});
+                                id_list = $.map(exist_units,function(val,index){return val.UnitId;});
+                            }
+                            else
+                            {
+                                id_list = $.map($scope.RemoveUnitGridOptions.data,function(val,index){return val.UnitId;});
+                                //var exist_units_rem =$.map($scope.RemoveUnitGridOptions.data,function(val,index){return val.UnitId;});
+                                //var exist_units_edit =$.map($scope.EditUnitGridOptions.data,function(val,index){return val.UnitId;});
+                                //id_list = exist_units_rem.concat(exist_units_edit);
+                            }
+
+
+                            return id_list;
+                        },
+                        CompanyId: function () {
+                            return $scope.Declaration.Company.Id;
+                        },
+                        LicId: function(){
+                            return $scope.Declaration.LicenseId;
+                        },
+                        TypeStr: function(){
+                            return type;
+                        }
+
+                    }
+
+                });
+
+                ContentModalInstance.result.then(function (new_units_in_declaration) {
+
+                    var now_list = null;
+                    var prolong_list = $scope.EditUnitGridOptions.data;
+                    if (type == 'Add')
+                    {
+                        now_list = $scope.AddUnitGridOptions.data;
+                    }
+                    else
+                    {
+                        if (type == 'Edit')
+                        {
+                            now_list = $scope.EditUnitGridOptions.data;
+                        }
+                        else
+                        {
+                            now_list = $scope.RemoveUnitGridOptions.data;
+                        }
+                    }
+
+                    for(i=0;i<new_units_in_declaration.length;i++)
+                    {
+                        now_list.push(new_units_in_declaration[i]);
+                    }
+                    $scope.DeleteUnitsRemoveFromGridUnitsEdit();
+                    $scope.GenerateUnitsForResolution();
+
+                }, function () {
+
+                });
+            };
+
+            //$scope.openEgrulWindow = function (searchValue, searchField) {
+
+            //    var ContentModalInstance = $modal.open({
+            //        templateUrl: '/Home/EgrulWindow',
+            //        controller: 'EgrulModalInstanceCtrl',
+            //        size: 'lg',
+            //        resolve: {
+            //            SearchValue: function () {
+            //                return searchValue;
+            //            },
+            //            SearchField: function () {
+            //                return searchField;
+            //            }
+            //        }
+
+            //    });
+
+            //    ContentModalInstance.result.then(function (SelectedCompany) {
+
+            //        $scope.Declaration.Company.INN = SelectedCompany.INN;
+            //        $scope.CheckINN();
+
+            //        $scope.Declaration.Company.KPP = SelectedCompany.KPP;
+            //        $scope.Declaration.Company.OGRN = SelectedCompany.OGRN;
+            //        $scope.Declaration.Company.FullName = SelectedCompany.NAME;
+            //        $scope.Declaration.Company.ShortName = SelectedCompany.NAME;
+            //        $scope.EgrulInfoUrl = 'http://egrul.nalog.ru/download/' + SelectedCompany.T;
+
+            //        $scope.RulesDispatcher.RunAllRules();
+            //    }, function () {
+
+            //    });
+            //};
+
+            $scope.ShowErrorsWindow = function (allErrors) {
+
+                var ContentModalInstance = $modal.open({
+                    templateUrl: '/Home/ErrorsWindow',
+                    controller: 'ErrorsWindowModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        AllErrors: function () {
+                            return allErrors;
+                        }
+                    }
+
+                });
+
+                ContentModalInstance.result.then(function () {
+
+                }, function () {
+
+                });
+            };
+
+
+            $scope.HandleSOSButton = function()
+            {
+                if ($scope.IsEditMode)
+                {
+                    $scope.JustSaveDeclaration(true);
+                    $scope.IsEditMode = false;
+                }
+                else
+                {
+                    $scope.IsEditMode = true;
+                }
+            }
+
+            $scope.UIDisabled = function()
+            {
+                return $scope.IsLoading||($scope.IsEditMode!=true && $scope.Declaration.IsClosed);
+            }
+
+            $scope.UIDisabledPM = function()
+            {
+                return $scope.IsLoading||($scope.IsEditMode != true && ($scope.Declaration.IsClosed || $scope.Declaration.IsCancelType || ($scope.Declaration.IsProlongType && !$scope.Declaration.IsReNewType)));
+            }
+
+            $scope.UICanEditPM = function()
+            {
+                return $scope.Declaration.IsClosed || $scope.Declaration.IsCancelType || ($scope.Declaration.IsProlongType && !$scope.Declaration.IsReNewType);
+            }
+
+        });
+
+        ConfigureUnitWindowDetail(app);
+        ConfigureUnitInDeclarationWindowDetail(app);
+        ConfigureAddExistUnitsWindow(app);
+        //ConfigureEgrulWindow(app);
+        ConfigureErrorsWindow(app);
+        ConfigureMessageWindow(app);
+
+    </script>
+}

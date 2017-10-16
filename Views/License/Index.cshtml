@@ -1,0 +1,379 @@
+﻿@model object
+@{
+    ViewBag.Title = "Реестр лицензий";
+}
+
+<div class="row" ng-app="LicenseApp">
+    <div ng-controller="LicenseCtrl" ng-cloak>
+        <div class="row">
+            <div class="col-md-8">
+                <h3>@ViewBag.Title</h3>
+            </div>
+            <div class="col-md-4 bottom-table-info">
+                Всего найдено записей: {{LicensesCount}} (загружено {{CountLoaded}})
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="toolbutton-panel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-default btn-sm" ng-click="OpenCompanyDetailWindow(SelectedLicense)" ng-disabled="SelectedLicense==null">Карточка организации</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-right">
+                            <div class="btn-group">
+                                <print-report-menu entity="AllFilters" category="'LicenseView'" meta="null"></print-report-menu>
+                                <button type="button" class="btn btn-default btn-sm" ng-click="IsExpandFilters = !IsExpandFilters" title="Поиск записей по расширенному фильтру">
+                                    <span class="glyphicon" ng-class="{true:'glyphicon-chevron-down',false:'glyphicon-chevron-right'}[IsExpandFilters]"></span> Расширенный поиск...
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*<div >*@
+        <div uib-collapse="!IsExpandFilters" class="row">
+            <div class="col-md-12 cfilter-container smaller-font">
+                <div class="cfilter-block">
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td>Дата начала с</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.LicenseDateStartFrom" is-open="datepickers.dt1" ng-change="FilterLicenses()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt1')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.LicenseDateStartFrom=null;FilterLicenses()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>по</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.LicenseDateStartTo" is-open="datepickers.dt2" ng-change="FilterLicenses()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt2')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.LicenseDateStartTo=null;FilterLicenses()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Дата окончания с</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.LicenseDateExpiredFrom" is-open="datepickers.dt3" ng-change="FilterLicenses()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt3')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.LicenseDateExpiredFrom=null;FilterLicenses()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>по</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.LicenseDateExpiredTo" is-open="datepickers.dt4" ng-change="FilterLicenses()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt4')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.LicenseDateExpiredTo=null;FilterLicenses()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="input-group cfilter-block">
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterLicenses()" ng-model="filter_meta.Status.vals.Canceled"> Аннулирована
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterLicenses()" ng-model="filter_meta.Status.vals.Active"> Действующая
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterLicenses()" ng-model="filter_meta.Status.vals.Expired"> Просрочена
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterLicenses()" ng-model="filter_meta.Status.vals.Discontinued"> Прекращена
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterLicenses()" ng-model="filter_meta.Status.vals.Suspended"> Приостановлена
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+        @*</div>*@
+
+        <div class="row smaller-font">
+            <div class="col-md-12">
+                @*style="height:800px"*@
+                <div id="LicenseGrid" style="margin-top:5px;" ng-style="HeightGrid" ui-grid="LicenseGridOptions" ui-grid-infinite-scroll ui-grid-resize-columns ui-grid-selection ui-grid-pinning></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts
+{
+    <script type="text/javascript" src="@Url.Content("/Scripts/i18n/angular-locale_ru-ru.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ui-grid-unstable.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CompanyWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/FiltratorClient.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ng-file-upload.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadDocumentModuleDirective.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CascadePrintReportMenu.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadBLOB.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/UnitWindowDetail.js")"></script>
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/SelectAddrDirective.js")"></script>
+
+    <script>
+        //, $timeout, $q
+        var app = angular.module('LicenseApp', ['ui.bootstrap', 'ngAnimate', 'ui.grid', 'ui.grid.pinning', 'ui.grid.resizeColumns', 'ui.grid.infiniteScroll', 'ui.grid.selection','ngFileUpload','cascadedownloaddocument', 'cascadeprintreportmenu','cascadeselectaddr']);
+        app.controller('LicenseCtrl', function ($scope, $http, $uibModal, $timeout, $q, i18nService, uiGridConstants, Upload) {
+
+            $scope.HeightGrid = { height: $(window).height() - 400 + "px" };
+            i18nService.setCurrentLang('ru');
+            $scope.SelectedLicense = null;
+            $scope.IsExpandFilters = false;
+
+            $scope.FilterAndSortingOptions = null;
+
+            $scope.dateOptions = {
+
+                startingDay: 1,
+                "show-weeks": false
+            };
+
+            $scope.datepickers = {
+                dt1: false,
+                dt2: false,
+                dt3: false,
+                dt4: false,
+                dt5: false,
+                dt6: false
+            };
+
+            $scope.open = function ($event, which) {
+                $event.preventDefault();
+                $event.stopPropagation();
+
+                $scope.datepickers[which] = true;
+            };
+
+            $scope.filter_meta = {
+                LicenseDateStartFrom: null,
+                LicenseDateStartTo: null,
+                LicenseDateExpiredFrom: null,
+                LicenseDateExpiredTo: null,
+                Status: {
+                    type: "flag",
+                    vals: {
+                        Canceled: false,
+                        Active: false,
+                        Expired: false,
+                        Discontinued: false,
+                        Suspended: false
+                    }
+                }
+            };
+
+            $scope.OpenCompanyDetailWindow = function(sel_lic)
+            {
+                $scope.openEditCompanyWindow(sel_lic.CompanyId);
+            };
+
+            $scope.get_template = function () {
+                return GetTemplateFromGridAndMetaFilter($scope.license_grid, $scope.filter_meta);
+            };
+
+            function rowTemplate() {
+                return '<div ng-dblclick="grid.appScope.rowDblClick(row)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" style="-webkit-user-select: text;user-select:text" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader,\'text-success\':row.entity.StatusRus==\'Проверка\', \'text-info\':row.entity.StatusRus==\'Зарегистрировано\', \'text-warning\':row.entity.StatusRus==\'Черновик\', \'text-danger\':row.entity.StatusRus==\'Отменено\'  }"  ui-grid-cell></div>';
+            }
+
+            $scope.rowDblClick = function (row) {
+                $scope.openEditCompanyWindow(row.entity.CompanyId);
+
+                $timeout(function () {
+                    if(document.selection && document.selection.empty) {
+                        document.selection.empty();
+                    } else if(window.getSelection) {
+                        var sel = window.getSelection();
+                        sel.removeAllRanges();
+                    }
+                }, 100);
+            };
+
+            $scope.LicenseGridOptions = {
+                data: [],
+                enableGridMenu: true,
+                enablePinning: true,
+                rowTemplate: rowTemplate(),
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableSorting: true,
+                enableFiltering: true,
+                useExternalSorting: true,
+                useExternalFiltering: true,
+                infiniteScrollRowsFromEnd: 10,
+                infiniteScrollUp: false,
+                infiniteScrollDown: true,
+                columnDefs: [
+                    
+                    { name: 'Номер дела', field: 'NomOfBook', width: 120 },
+                    { name: 'Номер', field: 'LicenseNom', width: 120 },
+                    { name: 'Начало', field: 'LicenseDateStart', width: 80, enableFiltering: false  },
+                    { name: 'Окончание', field: 'LicenseDateExpired', width: 80, enableFiltering: false },
+                    { name: 'Статус', field: 'LicenseStatusRus', width: 150, enableFiltering: false  },
+                    { name: 'Номер бланка', field: 'LastLicenseFormNom', width: 150 },
+                    { name: 'Компания', field: 'CompanyShortName', width: 200 },
+                    { name: 'ИНН', field: 'CompanyINN', width: 100 },
+                    { name: 'КПП', field: 'CompanyKPP', width: 100},
+                    { name: 'ОГРН', field: 'CompanyOGRN', width: 100},
+                    { name: 'Email', field: 'CompanyEmail', width: 160 },
+                    { name: 'Адрес компании', field: 'CompanyAddress', width: 300 },
+                    { name: 'Дата изменения', field: 'LastActionDate', width: 80, enableFiltering: false  },
+                    { name: 'Причина изменения', field: 'LastActionReason', width: 200 }
+                    
+
+                ],
+                onRegisterApi: function (LicenseGridApi) {
+                    $scope.LicenseGridApi = LicenseGridApi;
+                    $scope.license_grid = LicenseGridApi.grid;
+
+                    $scope.LicenseGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectLicense);
+
+                    $scope.LicenseGridApi.infiniteScroll.on.needLoadMoreData($scope, $scope.LicenseFilterNextPage);
+
+                    $scope.LicenseGridApi.core.on.filterChanged($scope, function () {
+                        if (angular.isDefined($scope.filterTimeout)) {
+                            $timeout.cancel($scope.filterTimeout);
+                        }
+                        $scope.filterTimeout = $timeout(function () {
+                            $scope.FilterLicenses();
+                        }, 300);
+                    });
+
+                    $scope.LicenseGridApi.core.on.sortChanged($scope, function () {
+                        if (angular.isDefined($scope.filterTimeout)) {
+                            $timeout.cancel($scope.filterTimeout);
+                        }
+                        $scope.filterTimeout = $timeout(function () {
+                            $scope.FilterLicenses();
+                        }, 100);
+                    });
+
+                }
+            };
+
+            $scope.FilterLicenses = function () {
+                $scope.FilterAndSortingOptions = $scope.get_template();
+                $http.post('@Url.Action("LicenseFilter", "License")', {  filter_template: $scope.FilterAndSortingOptions })
+            .success(function (data) {
+                $scope.LicensesCount = data.Count;
+                $scope.LicenseGridOptions.data = data.license_list;
+                $scope.CountLoaded = data.license_list.length;
+                $scope.LicenseGridApi.infiniteScroll.resetScroll(false, $scope.CountLoaded < $scope.LicensesCount);
+            });
+            };
+
+
+            $scope.LicenseFilterNextPage = function () {
+                $http.post('@Url.Action("LicenseFilterNextPage", "License")', { filter_template: $scope.FilterAndSortingOptions, SkipCount: $scope.CountLoaded })
+                    .success(function (data) {
+
+                        $scope.LicenseGridApi.infiniteScroll.saveScrollPercentage();
+                        $scope.LicenseGridOptions.data = $scope.LicenseGridOptions.data.concat(data);
+                        $scope.CountLoaded = $scope.LicenseGridOptions.data.length;
+
+                        $scope.LicenseGridApi.infiniteScroll.dataLoaded(false, $scope.CountLoaded < $scope.LicensesCount);
+
+                    })
+                    .error(function (error) {
+                        $scope.LicenseGridApi.infiniteScroll.dataLoaded();
+                    });
+            };
+
+            $scope.openEditCompanyWindow = function (SelectedCompanyId) {
+
+                var ContentModalInstance = $uibModal.open({
+                    templateUrl: '/Home/CompanyWindowDetail',
+                    controller: 'EditCompanyModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        CompanyId: function () {
+                            
+                                return SelectedCompanyId;
+                            
+                        }
+                    }
+
+                });
+
+                ContentModalInstance.result.then(function (Company) {
+
+                
+                }, function () {
+
+                });
+            };
+
+
+            $scope.SelectLicense = function (row, event) {
+
+                if (row.isSelected == true) {
+                    $scope.SelectedLicense = row.entity;
+
+                }
+                else {
+                    $scope.SelectedLicense = null;
+                }
+            };
+
+            if (angular.isDefined($scope.filterTimeout)) {
+                $timeout.cancel($scope.filterTimeout);
+            }
+            $scope.filterTimeout = $timeout(function () {
+
+                var buf_template = @Html.Raw(Model) ;
+
+
+
+                SetTemplateToGridAndMetaFilter($scope.license_grid, $scope.filter_meta, buf_template);
+
+                $scope.FilterLicenses();
+            }, 10);
+
+
+            $scope.$on("$destroy", function (event) {
+                if (angular.isDefined($scope.filterTimeout)) {
+                    $timeout.cancel($scope.filterTimeout);
+                }
+            });
+
+
+        });
+
+        ConfigureCompanyWindowDetail(app);
+        ConfigureUnitWindowDetail(app);
+    </script>
+}
+

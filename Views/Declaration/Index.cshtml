@@ -1,0 +1,415 @@
+﻿@model object
+@{
+    ViewBag.Title = "Реестр заявлений";
+}
+
+<div class="row" ng-app="DeclarationApp">
+    <div ng-controller="DeclarationCtrl" ng-cloak>
+        <div class="row">
+            <div class="col-md-7">
+                <h3>@ViewBag.Title</h3>
+            </div>
+            <div class="col-md-4 bottom-table-info">
+                Всего найдено записей: {{DeclarationsCount}} (загружено {{CountLoaded}})
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="toolbutton-panel">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="btn-group">
+                                <a class="btn btn-info btn-sm" data-ng-href="@Url.Action("Detail", "Declaration")/NewForNewCompany/0">Создать</a>
+                                <a class="btn btn-default btn-sm" data-ng-href="@Url.Action("Detail", "Declaration")/Edit/{{SelectedDeclaration.Id}}" ng-disabled="SelectedDeclaration==null">Открыть</a>
+                                <button type="button" class="btn btn-default btn-sm" ng-click="OpenCompanyDetailWindow(SelectedDeclaration)" ng-disabled="SelectedDeclaration==null||SelectedDeclaration.Company.Id==0">Карточка организации</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-right">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-default btn-sm" ng-click="IsExpandFilters = !IsExpandFilters" title="Поиск записей по расширенному фильтру">
+                                    <span class="glyphicon" ng-class="{true:'glyphicon-chevron-down',false:'glyphicon-chevron-right'}[IsExpandFilters]"></span> Расширенный поиск...
+                                </button>
+                                <print-report-menu entity="AllFilters" category="'DeclarationView'" meta="null"></print-report-menu>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @*<div >*@
+        <div uib-collapse="!IsExpandFilters" class="row">
+            <div class="col-md-12 cfilter-container smaller-font">
+                <div class="input-group cfilter-block">
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.SeeAllLicensedActivityType"> Все виды лицензируемой деятельности
+                    </div>
+                </div>
+                <div class="cfilter-block">
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td>Дата регистрации с</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.DateTimeDeclarationFrom" is-open="datepickers.dt1" ng-change="FilterDeclarations()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt1')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.DateTimeDeclarationFrom=null;FilterDeclarations()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>по</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.DateTimeDeclarationTo" is-open="datepickers.dt2" ng-change="FilterDeclarations()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt2')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.DateTimeDeclarationTo=null;FilterDeclarations()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Дата решения с</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.ResolutionDateFrom" is-open="datepickers.dt3" ng-change="FilterDeclarations()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt3')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.ResolutionDateFrom=null;FilterDeclarations()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>по</td>
+                                <td>
+                                    <div class="input-group date-box table-cell-margin">
+                                        <input type="text" class="form-control input-sm"
+                                               datepicker-options="dateOptions"
+                                               uib-datepicker-popup="dd.MM.yyyy" show-button-bar="false" ng-model="filter_meta.ResolutionDateTo" is-open="datepickers.dt4" ng-change="FilterDeclarations()" ng-required="false" ng-readonly="true">
+                                        <div class="input-group-btn">
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="open($event,'dt4')"><span class=" glyphicon glyphicon-calendar"></span></button>
+                                            <button type="button" class="btn btn-default btn-sm" ng-click="filter_meta.ResolutionDateTo=null;FilterDeclarations()"><span class=" glyphicon glyphicon-erase"></span></button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="input-group cfilter-block">
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Status.vals.Draft"> Черновик
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Status.vals.Consideration"> Зарегистрировано
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Status.vals.StartRevision"> Проверка
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Status.vals.Agreed"> Выполнено
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Status.vals.Canceled"> Отменено
+                    </div>
+                </div>
+                <div class="input-group cfilter-block">
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Type.vals.Grant"> Выдача
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Type.vals.Prolong"> Продление
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Type.vals.Renew"> Переоформление
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Type.vals.Cancel"> Прекращение
+                    </div>
+                    <div class="checkbox div-checkbox">
+                        <input type="checkbox" class="large-checkbox" ng-change="FilterDeclarations()" ng-model="filter_meta.Type.vals.Clone"> Дубликат
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        @*</div>*@
+
+        <div class="row smaller-font">
+            <div class="col-md-12">
+                @*style="height:800px"*@
+                <div id="DeclarationGrid" style="margin-top:5px;" ng-style="HeightGrid" ui-grid="DeclarationGridOptions" ui-grid-infinite-scroll ui-grid-resize-columns ui-grid-selection ui-grid-pinning></div>
+            </div>
+        </div>
+</div>
+
+
+@section scripts
+{
+    <script type="text/javascript" src="@Url.Content("/Scripts/i18n/angular-locale_ru-ru.js")"></script>
+
+    <script type="text/javascript" src="@Url.Content("/Scripts/ui-grid-unstable.js")"></script>
+<script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CompanyWindowDetail.js")"></script>
+
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/FiltratorClient.js")"></script>
+
+<script type="text/javascript" src="@Url.Content("/Scripts/ng-file-upload.js")"></script>
+
+<script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadDocumentModuleDirective.js")"></script>
+
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/CascadePrintReportMenu.js")"></script>
+
+    <script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/DownloadBLOB.js")"></script>
+<script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/UnitWindowDetail.js")"></script>
+<script type="text/javascript" src="@Url.Content("/Scripts/ControlersScript/SelectAddrDirective.js")"></script>
+
+    <script>
+        //, $timeout, $q
+        var app = angular.module('DeclarationApp', ['ui.bootstrap', 'ngAnimate', 'ui.grid', 'ui.grid.pinning', 'ui.grid.resizeColumns', 'ui.grid.infiniteScroll', 'ui.grid.selection','ngFileUpload','cascadedownloaddocument', 'cascadeprintreportmenu', ,'cascadeselectaddr']);
+        app.controller('DeclarationCtrl', function ($scope, $http, $uibModal, $timeout, $q, i18nService, uiGridConstants, Upload) {
+
+            $scope.HeightGrid = { height: $(window).height() - 400 + "px" };
+
+            i18nService.setCurrentLang('ru');
+
+            $scope.SelectedDeclaration = null;
+
+            $scope.IsExpandFilters = false;
+
+
+            $scope.FilterAndSortingOptions = null;
+
+            $scope.dateOptions = {
+
+                startingDay: 1,
+                "show-weeks": false
+            };
+
+            $scope.datepickers = {
+                dt1: false,
+                dt2: false,
+                dt3: false,
+                dt4: false,
+                dt5: false,
+                dt6: false
+            };
+
+            $scope.open = function ($event, which) {
+                $event.preventDefault();
+                $event.stopPropagation();
+
+                $scope.datepickers[which] = true;
+            };
+
+            $scope.filter_meta = {
+                SeeAllLicensedActivityType:false,
+                DateTimeDeclarationFrom: null,
+                DateTimeDeclarationTo: null,
+                ResolutionDateFrom: null,
+                ResolutionDateTo: null,
+                Status: {
+                    type: "flag",
+                    vals: {
+                        Draft: false,
+                        Consideration: false,
+                        Agreed: false,
+                        Canceled: false
+                    }
+                },
+                Type: {
+                    type: "flag",
+                    vals: {
+                        Grant: false,
+                        Prolong: false,
+                        Renew: false,
+                        Cancel: false,
+                        Clone: false
+                    }
+
+                }
+            };
+
+            $scope.OpenCompanyDetailWindow = function(sel_dec)
+            {
+                var ContentModalInstance = $uibModal.open({
+                    templateUrl: '/Home/CompanyWindowDetail',
+                    controller: 'EditCompanyModalInstanceCtrl',
+                    size: 'lg',
+                    resolve: {
+                        CompanyId: function () {
+                            
+                            return sel_dec.Company.Id;
+                            
+                        }
+                    }
+
+                });
+
+                ContentModalInstance.result.then(function (Company) {
+
+                
+                }, function () {
+
+                });
+            };
+
+            $scope.get_template = function () {
+                return GetTemplateFromGridAndMetaFilter($scope.declaration_grid, $scope.filter_meta);
+            };
+
+            function rowTemplate() {
+                return '<div ng-dblclick="grid.appScope.rowDblClick(xs)" ng-repeat="(colRenderIndex, col) in colContainer.renderedColumns track by col.colDef.name" style="-webkit-user-select: text;user-select:text" class="ui-grid-cell" ng-class="{ \'ui-grid-row-header-cell\': col.isRowHeader, \'text-success\':row.entity.StatusRus==\'Проверка\', \'text-info\':row.entity.StatusRus==\'Зарегистрировано\', \'text-warning\':row.entity.StatusRus==\'Черновик\', \'text-danger\':row.entity.StatusRus==\'Отменено\'  }"  ui-grid-cell></div>';
+            }
+
+            $scope.rowDblClick = function (row) {
+                window.location.href = '/Declaration/Detail/Edit/'+$scope.SelectedDeclaration.Id;
+            };
+
+
+            $scope.DeclarationGridOptions = {
+                data: [],
+                enableGridMenu: true,
+                enablePinning: true,
+                rowTemplate: rowTemplate(),
+                enableRowSelection: true,
+                enableRowHeaderSelection: false,
+                multiSelect: false,
+                noUnselect: true,
+                enableSelectionBatchEvent: false,
+                enableColumnResizing: true,
+                enableSorting: true,
+                enableFiltering: true,
+                useExternalSorting: true,
+                useExternalFiltering: true,
+                infiniteScrollRowsFromEnd: 10,
+                infiniteScrollUp: false,
+                infiniteScrollDown: true,
+                columnDefs: [
+                    { name: 'Вид', field: 'LicensedActivityTypeName', width: 70, enableFiltering: false },
+                    { name: 'Статус', field: 'StatusRus', width: 110, enableFiltering: false },
+                    { name: 'Рег №', field: 'RegNomAll', width: 70 },
+                    { name: 'Дата регистрации', field: 'DateTimeDeclaration', width: 140, enableFiltering: false },
+                    { name: 'Сокращенное название', field: 'Company.ShortName', width: 220 },
+                    { name: 'Сокращенное название (сейчас)', field: 'CompanyShortNameNow', width: 220, visible: false },
+                    { name: 'Полное название', field: 'Company.FullName', width: 280, visible: false },
+                    { name: 'Полное название (сейчас)', field: 'CompanyFullNameNow', width: 280, visible: false },
+                    { name: 'ИНН', field: 'Company.INN', width: 100 },
+                    { name: 'КПП', field: 'Company.KPP', width: 100 },
+                    { name: 'Тип', field: 'AllTypeDeclarationRus', width: 230, enableFiltering: false },
+                    { name: 'Пошлина', field: 'PaymentOrdersAll', width: 150 },
+                    { name: 'Создал', field: 'Creator', width: 90 },
+                    { name: '№ решения', field: 'ResolutionNom', width: 90 },
+                    { name: 'Дата решения', field: 'ResolutionDate', width: 100, enableFiltering: false },
+                    { name: 'Примечание к заявлению', field: 'Comm', width: 250 },
+                    { name: 'Примечание к решению', field: 'ResolutionComm', width: 250 }
+
+                ],
+                onRegisterApi: function (DeclarationGridApi) {
+                    $scope.DeclarationGridApi = DeclarationGridApi;
+                    $scope.declaration_grid = DeclarationGridApi.grid;
+
+                    $scope.DeclarationGridApi.selection.on.rowSelectionChanged($scope, $scope.SelectDeclaration);
+
+                    $scope.DeclarationGridApi.infiniteScroll.on.needLoadMoreData($scope, $scope.DeclarationFilterNextPage);
+
+                    $scope.DeclarationGridApi.core.on.filterChanged($scope, function () {
+                        if (angular.isDefined($scope.filterTimeout)) {
+                            $timeout.cancel($scope.filterTimeout);
+                        }
+                        $scope.filterTimeout = $timeout(function () {
+                            $scope.FilterDeclarations();
+                        }, 300);
+                    });
+
+                    $scope.DeclarationGridApi.core.on.sortChanged($scope, function () {
+                        if (angular.isDefined($scope.filterTimeout)) {
+                            $timeout.cancel($scope.filterTimeout);
+                        }
+                        $scope.filterTimeout = $timeout(function () {
+                            $scope.FilterDeclarations();
+                        }, 100);
+                    });
+
+                }
+            };
+
+            $scope.FilterDeclarations = function () {
+                $scope.FilterAndSortingOptions = $scope.get_template();
+                $http.post('@Url.Action("DeclarationFilter", "Declaration")', {  filter_template: $scope.FilterAndSortingOptions })
+            .success(function (data) {
+                $scope.DeclarationsCount = data.Count;
+                $scope.DeclarationGridOptions.data = data.declaration_list;
+                $scope.CountLoaded = data.declaration_list.length;
+                $scope.DeclarationGridApi.infiniteScroll.resetScroll(false, $scope.CountLoaded < $scope.DeclarationsCount);
+            });
+            };
+
+
+            $scope.DeclarationFilterNextPage = function () {
+                $http.post('@Url.Action("DeclarationFilterNextPage", "Declaration")', { filter_template: $scope.FilterAndSortingOptions, SkipCount: $scope.CountLoaded })
+                    .success(function (data) {
+
+                        $scope.DeclarationGridApi.infiniteScroll.saveScrollPercentage();
+                        $scope.DeclarationGridOptions.data = $scope.DeclarationGridOptions.data.concat(data);
+                        $scope.CountLoaded = $scope.DeclarationGridOptions.data.length;
+
+                        $scope.DeclarationGridApi.infiniteScroll.dataLoaded(false, $scope.CountLoaded < $scope.DeclarationsCount);
+
+                    })
+                    .error(function (error) {
+                        $scope.DeclarationGridApi.infiniteScroll.dataLoaded();
+                    });
+            };
+
+
+            $scope.SelectDeclaration = function (row, event) {
+
+                if (row.isSelected == true) {
+                    $scope.SelectedDeclaration = row.entity;
+
+                }
+                else {
+                    $scope.SelectedDeclaration = null;
+                }
+            };
+
+            if (angular.isDefined($scope.filterTimeout)) {
+                $timeout.cancel($scope.filterTimeout);
+            }
+            $scope.filterTimeout = $timeout(function () {
+
+                var buf_template = @Html.Raw(Model) ;
+
+
+
+                SetTemplateToGridAndMetaFilter($scope.declaration_grid, $scope.filter_meta, buf_template);
+
+                $scope.FilterDeclarations();
+            }, 10);
+
+
+            $scope.$on("$destroy", function (event) {
+                if (angular.isDefined($scope.filterTimeout)) {
+                    $timeout.cancel($scope.filterTimeout);
+                }
+            });
+
+
+            @*$http.post('@Url.Action("GetAllDeclaration", "Declaration")', {})
+        .success(function (data) {
+            $scope.DeclarationGridOptions.data = data;
+        });*@
+
+        });
+
+        ConfigureCompanyWindowDetail(app);
+        ConfigureUnitWindowDetail(app);
+    </script>
+}
